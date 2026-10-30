@@ -13,6 +13,9 @@ const CATALOG_SHEET = '';
 // Аркуш для замовлень у цій (прив'язаній) таблиці; створиться сам
 const ORDERS_SHEET = 'Замовлення';
 
+// Захист від спаму: скільки різних книг можна в одному замовленні
+const MAX_ITEMS = 100;
+
 const ORDER_HEADERS = [
   'Дата', '№ замовлення', 'ПІБ', 'Телефон', 'Email', 'Доставка', 'Коментар',
   '№ книги', 'Автор', 'Назва', 'Ціна', 'К-сть', 'Сума', 'Разом по замовленню',
@@ -28,6 +31,11 @@ function doPost(e) {
   try {
     const order = JSON.parse(e.postData.contents);
     const customer = order.customer || {};
+    if (customer.website) return json_({ ok: true, orderId: '-', total: 0 }); // пастка для ботів
+    const items = Array.isArray(order.items) ? order.items : [];
+    if (items.length > MAX_ITEMS) {
+      return json_({ ok: false, error: 'Забагато позицій в одному замовленні.' });
+    }
     if (!str_(customer.name) || !str_(customer.phone)) {
       return json_({ ok: false, error: 'Вкажіть ПІБ і телефон.' });
     }
@@ -36,12 +44,19 @@ function doPost(e) {
     const byId = {};
     readCatalog_().forEach(b => { byId[b.id] = b; });
 
+    // одна й та сама книга могла прийти кількома рядками — сумуємо
+    const qtyById = {};
+    items.forEach(item => {
+      const qty = Math.floor(Number(item.qty));
+      if (qty > 0) qtyById[String(item.id)] = (qtyById[String(item.id)] || 0) + qty;
+    });
+
     const lines = [];
     const problems = [];
-    (order.items || []).forEach(item => {
-      const book = byId[String(item.id)];
-      const qty = Math.floor(Number(item.qty));
-      if (!book || !(qty > 0)) return;
+    Object.keys(qtyById).forEach(id => {
+      const book = byId[id];
+      const qty = qtyById[id];
+      if (!book) return;
       if (qty > book.stock) {
         problems.push(`«${book.title}»: доступно лише ${book.stock} шт.`);
         return;
@@ -53,13 +68,14 @@ function doPost(e) {
     if (!lines.length) return json_({ ok: false, error: 'Кошик порожній.' });
 
     const total = lines.reduce((s, l) => s + l.sum, 0);
-    const orderId = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyMMdd-HHmmss');
     const now = new Date();
+    const orderId = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMdd-HHmmss') +
+      '-' + Math.floor(Math.random() * 900 + 100);
 
     const rows = lines.map(l => [
-      now, orderId, str_(customer.name), "'" + str_(customer.phone), str_(customer.email),
-      str_(customer.delivery), str_(customer.comment),
-      l.book.id, l.book.author, l.book.title, l.book.price, l.qty, l.sum, total,
+      now, orderId, text_(customer.name), "'" + str_(customer.phone), text_(customer.email),
+      text_(customer.delivery), text_(customer.comment),
+      l.book.id, text_(l.book.author), text_(l.book.title), l.book.price, l.qty, l.sum, total,
     ]);
 
     const sheet = ordersSheet_();
@@ -67,7 +83,8 @@ function doPost(e) {
 
     return json_({ ok: true, orderId, total });
   } catch (err) {
-    return json_({ ok: false, error: String(err) });
+    console.error(err);
+    return json_({ ok: false, error: 'Помилка на сервері. Спробуйте ще раз.' });
   } finally {
     lock.releaseLock();
   }
@@ -111,6 +128,13 @@ function ordersSheet_() {
 
 function str_(v) {
   return String(v == null ? '' : v).trim().slice(0, 500);
+}
+
+// Текст, який починається з = + - @, таблиця сприйме як формулу.
+// Апостроф змушує записати його як звичайний текст.
+function text_(v) {
+  const t = str_(v);
+  return /^[=+\-@]/.test(t) ? "'" + t : t;
 }
 
 function json_(obj) {
