@@ -266,7 +266,7 @@
   .total { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 22px; }
   .total b { font: 600 22px Lora, Georgia, serif; }
   .section { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
-  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
   .form .full { grid-column: 1 / -1; }
   @media (max-width: 520px) { .form { grid-template-columns: 1fr; } .dlg { padding: 18px; } }
   label { display: grid; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
@@ -279,6 +279,15 @@
     transition: border-color .15s;
   }
   label input:focus, label textarea:focus { border-color: var(--accent); }
+  label .hint { font-weight: 400; color: var(--muted); }
+  label [aria-invalid="true"] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 6%, var(--bg)); }
+  .err {
+    min-height: 0; font-size: 12.5px; font-weight: 500; color: var(--danger);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .err:empty { display: none; }
+  .err::before { content: "!"; flex: none; width: 15px; height: 15px; border-radius: 50%; background: var(--danger); color: var(--surface); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+  .counter { justify-self: end; font-size: 12px; font-weight: 400; margin-top: -2px; }
   textarea { resize: vertical; min-height: 70px; }
   .trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
   .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
@@ -341,7 +350,7 @@
 </div>
 
 <dialog id="dialog">
-  <form class="dlg" id="orderForm" method="dialog">
+  <form class="dlg" id="orderForm" method="dialog" novalidate>
     <div id="orderBody">
       <div class="dlg-head">
         <h2>Ваше замовлення</h2>
@@ -351,11 +360,11 @@
       <div class="total"><span>Разом</span><b id="dlgTotal"></b></div>
       <p class="section">Контактні дані</p>
       <div class="form">
-        <label>ПІБ *<input name="name" required autocomplete="name"></label>
-        <label>Телефон *<input name="phone" type="tel" required autocomplete="tel"></label>
-        <label class="full">Email<input name="email" type="email" autocomplete="email"></label>
-        <label class="full">Доставка (місто, відділення Нової пошти)<input name="delivery"></label>
-        <label class="full">Коментар<textarea name="comment"></textarea></label>
+        <label>ПІБ *<input name="name" autocomplete="name" maxlength="100" aria-describedby="err-name"><span class="err" id="err-name"></span></label>
+        <label>Телефон *<input name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+380 67 123 45 67" maxlength="20" aria-describedby="err-phone"><span class="err" id="err-phone"></span></label>
+        <label class="full"><span>Email <span class="hint">(необов'язково)</span></span><input name="email" type="email" autocomplete="email" maxlength="100" aria-describedby="err-email"><span class="err" id="err-email"></span></label>
+        <label class="full"><span>Доставка <span class="hint">(місто, відділення Нової пошти)</span></span><input name="delivery" maxlength="200" aria-describedby="err-delivery"><span class="err" id="err-delivery"></span></label>
+        <label class="full"><span>Коментар <span class="hint">(необов'язково)</span></span><textarea name="comment" maxlength="500"></textarea><span class="counter hint" id="commentCount"></span></label>
         <input class="trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       </div>
       <div class="msg error" id="formMsg"></div>
@@ -605,10 +614,85 @@ function refreshRow(id) {
   if (old) old.replaceWith(bookRow(byId.get(id)));
 }
 
+// Валідація форми замовлення: кожне правило повертає текст помилки або ''
+const phoneDigits = v => v.replace(/\D/g, '');
+const RULES = {
+  name(v) {
+    if (!v) return 'Вкажіть ваше ім’я та прізвище';
+    if (v.length < 2) return 'Занадто коротко';
+    if (!/^[\p{L}][\p{L}\s'’ʼ.\-]*$/u.test(v)) return 'Лише літери, пробіли, апостроф і дефіс';
+    return '';
+  },
+  phone(v) {
+    if (!v) return 'Вкажіть номер телефону';
+    if (/[^\d\s()+\-]/.test(v)) return 'Номер може містити лише цифри';
+    const d = phoneDigits(v);
+    if (/^0\d{9}$/.test(d) || /^380\d{9}$/.test(d)) return '';
+    if (v.trim().startsWith('+') && d.length >= 10 && d.length <= 15 && !d.startsWith('380')) return '';
+    return 'Формат: +380 67 123 45 67 або 067 123 45 67';
+  },
+  email(v) {
+    if (!v) return '';
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? '' : 'Схоже, в адресі помилка: приклад name@gmail.com';
+  },
+  delivery(v) {
+    if (v && v.length < 3) return 'Вкажіть місто і номер відділення';
+    return '';
+  },
+};
+
+// +380671234567 → +380 67 123 45 67
+function formatPhone(v) {
+  let d = phoneDigits(v);
+  if (/^0\d{9}$/.test(d)) d = '38' + d;
+  if (!/^380\d{9}$/.test(d)) return v.trim();
+  return `+${d.slice(0, 3)} ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8, 10)} ${d.slice(10)}`;
+}
+
+function validateField(input) {
+  const msg = RULES[input.name](input.value.trim());
+  input.setAttribute('aria-invalid', msg ? 'true' : 'false');
+  $('err-' + input.name).textContent = msg;
+  return !msg;
+}
+
+const fields = Object.keys(RULES).map(name => $('orderForm').elements[name]);
+for (const input of fields) {
+  // поки поле не покинули — не сваримося; після першої помилки перевіряємо на льоту
+  input.addEventListener('blur', () => {
+    if (input.name === 'phone' && !RULES.phone(input.value.trim())) input.value = formatPhone(input.value);
+    if (input.value.trim() || input.dataset.touched) validateField(input);
+    input.dataset.touched = '1';
+  });
+  input.addEventListener('input', () => {
+    if (input.getAttribute('aria-invalid') === 'true') validateField(input);
+  });
+}
+
+const comment = $('orderForm').elements.comment;
+comment.addEventListener('input', () => {
+  const left = comment.maxLength - comment.value.length;
+  $('commentCount').textContent = left < 100 ? `Залишилось символів: ${left}` : '';
+});
+
+function resetValidation() {
+  for (const input of fields) {
+    input.removeAttribute('aria-invalid');
+    delete input.dataset.touched;
+    $('err-' + input.name).textContent = '';
+  }
+}
+
 async function submitOrder(e) {
   e.preventDefault();
   const form = $('orderForm');
-  if (!form.reportValidity()) return;
+  const invalid = fields.filter(input => !validateField(input));
+  if (invalid.length) {
+    invalid[0].focus();
+    invalid[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return;
+  }
+  form.elements.phone.value = formatPhone(form.elements.phone.value);
   const fd = new FormData(form);
   const payload = {
     customer: Object.fromEntries(['name', 'phone', 'email', 'delivery', 'comment', 'website'].map(k => [k, fd.get(k)])),
@@ -698,6 +782,7 @@ $('openOrder').addEventListener('click', () => {
   $('orderBody').hidden = false;
   $('orderDone').hidden = true;
   $('formMsg').textContent = '';
+  resetValidation();
   $('dialog').showModal();
 });
 $('closeOrder').addEventListener('click', () => $('dialog').close());

@@ -55,6 +55,10 @@ function doPost(e) {
     if (!str_(customer.name) || !str_(customer.phone)) {
       return json_({ ok: false, error: 'Вкажіть ПІБ і телефон.' });
     }
+    const phoneDigits = str_(customer.phone).replace(/\D/g, '').length;
+    if (phoneDigits < 10 || phoneDigits > 15) {
+      return json_({ ok: false, error: 'Перевірте номер телефону.' });
+    }
 
     // Ціни й наявність беремо з каталогу, а не з браузера
     const byId = {};
