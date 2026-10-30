@@ -210,7 +210,7 @@
 
   .state { text-align: center; color: var(--muted); padding: 56px 0; }
   .state.error { color: var(--danger); }
-  .more { display: block; margin: 28px auto 0; }
+  .more { height: 1px; }
 
   .btn {
     font-weight: 600; cursor: pointer;
@@ -346,7 +346,6 @@
 <body>
 
 <header class="wrap">
-  <span class="eyebrow">Книги в наявності</span>
   <h1>Бібліотека Оленки Шевчук</h1>
   <p class="sub">Оберіть книги та кількість, оформіть замовлення — і ми зв'яжемося з вами, щоб домовитися про доставку.</p>
 </header>
@@ -378,7 +377,7 @@
   <div class="count" id="count">&nbsp;</div>
   <ul class="list" id="list"></ul>
   <div class="state" id="state" hidden></div>
-  <button class="btn ghost more" id="more" hidden>Показати ще</button>
+  <div class="more" id="more" aria-hidden="true" hidden></div>
 </main>
 
 <footer class="wrap">Бібліотека Оленки Шевчук</footer>
@@ -565,6 +564,16 @@ function render() {
 
   $('count').textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
   showState(filtered.length ? '' : 'Нічого не знайдено. Спробуйте інший запит.');
+  $('more').hidden = shown >= filtered.length;
+}
+
+// Дописує наступну порцію книг у кінець списку, не перемальовуючи вже показані
+function loadMore() {
+  if (shown >= filtered.length) return;
+  const frag = document.createDocumentFragment();
+  for (const b of filtered.slice(shown, shown + PAGE)) frag.append(bookRow(b));
+  shown += PAGE;
+  $('list').append(frag);
   $('more').hidden = shown >= filtered.length;
 }
 
@@ -1067,7 +1076,15 @@ document.addEventListener('click', e => {
   if (!sortMenu.hidden && !e.target.closest('.sort')) closeSort();
 });
 
-$('more').addEventListener('click', () => { shown += PAGE; render(); });
+// Нескінченна прокрутка: коли до кінця списку лишається ~2 екрани, дописуємо ще книги
+const moreObserver = new IntersectionObserver(entries => {
+  if (!entries[0].isIntersecting) return;
+  loadMore();
+  // якщо після дописування кінець списку досі видно — перевіряємо ще раз
+  moreObserver.unobserve($('more'));
+  moreObserver.observe($('more'));
+}, { rootMargin: '0px 0px 1200px 0px' });
+moreObserver.observe($('more'));
 $('openOrder').addEventListener('click', () => {
   renderLines();
   $('orderBody').hidden = false;
