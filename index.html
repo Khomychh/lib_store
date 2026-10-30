@@ -289,6 +289,8 @@
   .err:empty { display: none; }
   .err::before { content: "!"; flex: none; width: 15px; height: 15px; border-radius: 50%; background: var(--danger); color: var(--surface); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
   .counter { justify-self: end; font-size: 12px; font-weight: 400; margin-top: -2px; }
+  .help-link { justify-self: start; font-size: 12.5px; font-weight: 500; color: var(--accent); text-decoration: none; }
+  .help-link:hover { text-decoration: underline; }
   textarea { resize: vertical; min-height: 70px; }
   .form + .section, .note + .form, .note + .section { margin-top: 22px; }
   .choices + .note { margin-top: -4px; }
@@ -423,7 +425,7 @@
         <label class="full" data-for="np_courier" hidden>Вулиця *<input name="street" autocomplete="address-line1" maxlength="120" aria-describedby="err-street"><span class="err" id="err-street"></span></label>
         <label data-for="np_courier" hidden>Будинок *<input name="house" maxlength="20" aria-describedby="err-house"><span class="err" id="err-house"></span></label>
         <label data-for="np_courier" hidden><span>Квартира <span class="hint">(якщо є)</span></span><input name="flat" maxlength="20"></label>
-        <label data-for="ukrposhta" hidden>Індекс відділення *<input name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="79000" aria-describedby="err-zip"><span class="err" id="err-zip"></span></label>
+        <label data-for="ukrposhta" hidden>Індекс відділення *<input name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="79000" aria-describedby="err-zip"><span class="err" id="err-zip"></span><a class="help-link" href="https://offices.ukrposhta.ua/" target="_blank" rel="noopener">Дізнатися індекс відділення ↗</a></label>
         <p class="note full" data-for="pickup" hidden>Ми зв’яжемося з вами, щоб домовитися про місце і час.</p>
         <label class="check full"><input type="checkbox" name="otherRecipient"> Отримувати буде інша людина</label>
         <label data-recipient hidden>Прізвище та ім’я отримувача *<input name="rname" maxlength="100" aria-describedby="err-rname"><span class="err" id="err-rname"></span></label>
