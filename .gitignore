@@ -1,0 +1,20 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local data exports
+*.csv
+*.xlsx
+*.xls
+
+# Logs / temp
+*.log
+*.tmp
+node_modules/
+.env
