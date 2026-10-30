@@ -3,22 +3,38 @@
  *
  * Скрипт прив'язаний до таблиці ЗАМОВЛЕНЬ (Розширення → Apps Script).
  *   GET  → повертає JSON зі списком книг у наявності з таблиці-каталогу
- *   POST → записує замовлення в аркуш «Замовлення»
+ *   POST → записує замовлення в два аркуші:
+ *          «Замовлення» — один рядок на замовлення, з колонкою «Статус»
+ *          «Позиції»    — один рядок на кожну книгу, пов'язаний номером замовлення
  */
 
 // ID таблиці з книгами: частина посилання між /d/ і /edit
 const CATALOG_ID = 'ВСТАВТЕ_ID_ТАБЛИЦІ_З_КНИГАМИ';
 // Назва аркуша з книгами; порожньо — перший аркуш
 const CATALOG_SHEET = '';
-// Аркуш для замовлень у цій (прив'язаній) таблиці; створиться сам
+// Аркуші в цій (прив'язаній) таблиці; створюються самі
 const ORDERS_SHEET = 'Замовлення';
+const ITEMS_SHEET = 'Позиції';
 
 // Захист від спаму: скільки різних книг можна в одному замовленні
 const MAX_ITEMS = 100;
 
 const ORDER_HEADERS = [
-  'Дата', '№ замовлення', 'ПІБ', 'Телефон', 'Email', 'Доставка', 'Коментар',
-  '№ книги', 'Автор', 'Назва', 'Ціна', 'К-сть', 'Сума', 'Разом по замовленню',
+  'Дата', '№ замовлення', 'Статус', 'ПІБ', 'Телефон', 'Email', 'Доставка', 'Коментар',
+  'Книг, шт.', 'Сума', 'Склад замовлення',
+];
+const ITEM_HEADERS = ['Дата', '№ замовлення', '№ книги', 'Автор', 'Назва', 'Ціна', 'К-сть', 'Сума'];
+
+const STATUS_COL = 3; // колонка «Статус» в аркуші «Замовлення»
+const NEW_STATUS = 'Нове';
+// Статус і колір рядка; порядок = порядок у випадному списку
+const STATUSES = [
+  ['Нове', '#fff2cc'],
+  ['Підтверджено', '#dbe9f6'],
+  ['Оплачено', '#e4dcf3'],
+  ['Відправлено', '#d9ead3'],
+  ['Виконано', null],
+  ['Скасовано', '#eeeeee'],
 ];
 
 function doGet() {
@@ -72,14 +88,21 @@ function doPost(e) {
     const orderId = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMdd-HHmmss') +
       '-' + Math.floor(Math.random() * 900 + 100);
 
-    const rows = lines.map(l => [
-      now, orderId, text_(customer.name), "'" + str_(customer.phone), text_(customer.email),
-      text_(customer.delivery), text_(customer.comment),
-      l.book.id, text_(l.book.author), text_(l.book.title), l.book.price, l.qty, l.sum, total,
-    ]);
+    const pcs = lines.reduce((s, l) => s + l.qty, 0);
+    const summary = lines
+      .map(l => `${l.book.title} × ${l.qty} — ${l.sum} грн`)
+      .join('\n');
 
-    const sheet = ordersSheet_();
-    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+    appendRows_(itemsSheet_(), lines.map(l => [
+      now, orderId, l.book.id, text_(l.book.author), text_(l.book.title), l.book.price, l.qty, l.sum,
+    ]));
+
+    const orders = ordersSheet_();
+    const row = appendRows_(orders, [[
+      now, orderId, NEW_STATUS, text_(customer.name), "'" + str_(customer.phone), text_(customer.email),
+      text_(customer.delivery), text_(customer.comment), pcs, total, text_(summary),
+    ]]);
+    orders.getRange(row, STATUS_COL).setDataValidation(statusRule_());
 
     return json_({ ok: true, orderId, total });
   } catch (err) {
@@ -114,16 +137,59 @@ function readCatalog_() {
     }));
 }
 
+// Дописує рядки в кінець аркуша; повертає номер першого доданого рядка
+function appendRows_(sheet, rows) {
+  const row = sheet.getLastRow() + 1;
+  sheet.getRange(row, 1, rows.length, rows[0].length).setValues(rows);
+  return row;
+}
+
 function ordersSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(ORDERS_SHEET);
+  // аркуш старого формату (рядок на книгу) не чіпаємо — лише перейменовуємо
+  if (sheet && sheet.getRange(1, STATUS_COL).getValue() !== 'Статус') {
+    sheet.setName(ORDERS_SHEET + ' (старі)');
+    sheet = null;
+  }
   if (!sheet) {
-    sheet = ss.insertSheet(ORDERS_SHEET);
-    sheet.appendRow(ORDER_HEADERS);
-    sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, ORDER_HEADERS.length).setFontWeight('bold');
+    sheet = createSheet_(ss, ORDERS_SHEET, ORDER_HEADERS);
+    sheet.setColumnWidth(ORDER_HEADERS.length, 360);
+    sheet.getRange('K:K').setWrap(true);
+    sheet.getRange('J:J').setNumberFormat('#,##0 "грн"');
+
+    // кольори рядків за статусом
+    const range = sheet.getRange('A2:K');
+    sheet.setConditionalFormatRules(STATUSES
+      .filter(([, color]) => color)
+      .map(([name, color]) => SpreadsheetApp.newConditionalFormatRule()
+        .whenFormulaSatisfied(`=$C2="${name}"`)
+        .setBackground(color)
+        .setRanges([range])
+        .build()));
   }
   return sheet;
+}
+
+function itemsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return ss.getSheetByName(ITEMS_SHEET) || createSheet_(ss, ITEMS_SHEET, ITEM_HEADERS);
+}
+
+function createSheet_(ss, name, headers) {
+  const sheet = ss.insertSheet(name);
+  sheet.appendRow(headers);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+  sheet.getRange('A:A').setNumberFormat('dd.MM.yyyy HH:mm');
+  return sheet;
+}
+
+function statusRule_() {
+  return SpreadsheetApp.newDataValidation()
+    .requireValueInList(STATUSES.map(([name]) => name), true)
+    .setAllowInvalid(false)
+    .build();
 }
 
 function str_(v) {
