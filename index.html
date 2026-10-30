@@ -77,7 +77,7 @@
   .toolbar .wrap { display: flex; gap: 10px; }
   .search { position: relative; flex: 1; min-width: 0; }
   .search svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
-  .toolbar input, .toolbar select {
+  .toolbar input, .sort-btn {
     font: inherit; color: inherit;
     background: var(--surface);
     border: 1px solid var(--line);
@@ -85,11 +85,48 @@
     padding: 11px 16px;
     box-shadow: var(--shadow);
     outline: none;
-    transition: border-color .15s;
+    transition: border-color .15s, background .15s;
   }
   .toolbar input { width: 100%; padding-left: 42px; }
-  .toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
-  .toolbar select { cursor: pointer; max-width: 46%; }
+  .toolbar input:focus { border-color: var(--accent); }
+
+  /* Сортування */
+  .sort { position: relative; flex: none; }
+  .sort-btn {
+    height: 100%;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; white-space: nowrap;
+  }
+  .sort-btn:hover, .sort-btn[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .sort-btn:focus-visible { border-color: var(--accent); }
+  .sort-btn svg { flex: none; color: var(--muted); }
+  .sort-btn .chev { transition: transform .2s; }
+  .sort-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .sort-menu {
+    position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
+    min-width: 230px;
+    list-style: none; margin: 0; padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    box-shadow: var(--shadow-lg);
+    transform-origin: top right;
+    animation: pop .14s ease-out;
+  }
+  .sort-menu:focus { outline: none; }
+  @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } }
+  .sort-menu li {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .sort-menu li:hover, .sort-menu li.active { background: var(--accent-soft); }
+  .sort-menu li[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+  .sort-menu .tick { width: 16px; flex: none; visibility: hidden; }
+  .sort-menu li[aria-selected="true"] .tick { visibility: visible; }
+
   .count { color: var(--muted); font-size: 13px; padding: 8px 0 14px; }
 
   /* Список книг */
@@ -128,7 +165,8 @@
     .row .info { grid-column: 1 / -1; }
     .pricebox { text-align: left; display: flex; align-items: baseline; gap: 10px; }
     .row .title { font-size: 15px; }
-    .toolbar select { padding: 11px 10px; max-width: 136px; }
+    .sort-btn { padding: 11px 14px; }
+    .sort-btn .label { display: none; }
   }
 
   .add {
@@ -255,13 +293,20 @@
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
       <input id="search" type="search" placeholder="Пошук за назвою або автором" autocomplete="off">
     </div>
-    <select id="sort" aria-label="Сортування">
-      <option value="title">За назвою</option>
-      <option value="author">За автором</option>
-      <option value="price-asc">Дешевші</option>
-      <option value="price-desc">Дорожчі</option>
-      <option value="year-desc">Новіші</option>
-    </select>
+    <div class="sort">
+      <button type="button" class="sort-btn" id="sortBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Сортування">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+        <span class="label" id="sortLabel">За назвою</span>
+        <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <ul class="sort-menu" id="sortMenu" role="listbox" tabindex="-1" hidden>
+        <li role="option" data-value="title" aria-selected="true">За назвою</li>
+        <li role="option" data-value="author">За автором</li>
+        <li role="option" data-value="price-asc">Спочатку дешевші</li>
+        <li role="option" data-value="price-desc">Спочатку дорожчі</li>
+        <li role="option" data-value="year-desc">Спочатку новіші</li>
+      </ul>
+    </div>
   </div>
 </div>
 
@@ -329,6 +374,7 @@ let byId = new Map();
 let filtered = [];
 let shown = PAGE;
 let cart = loadCart();
+let sortBy = 'title';
 
 function loadCart() {
   try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; }
@@ -406,7 +452,7 @@ function applyFilter(keepShown) {
     'price-desc': (a, b) => b.price - a.price,
     'year-desc': (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0),
   };
-  filtered.sort(sorters[$('sort').value]);
+  filtered.sort(sorters[sortBy]);
   if (!keepShown) shown = PAGE;
   render();
 }
@@ -584,7 +630,54 @@ async function submitOrder(e) {
 
 let searchTimer;
 $('search').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(() => applyFilter(), 150); });
-$('sort').addEventListener('change', () => applyFilter());
+// меню сортування
+const sortBtn = $('sortBtn');
+const sortMenu = $('sortMenu');
+const sortItems = [...sortMenu.children];
+let activeItem = -1;
+
+for (const li of sortItems) {
+  li.insertAdjacentHTML('afterbegin', '<svg class="tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>');
+  li.addEventListener('click', () => chooseSort(li));
+  li.addEventListener('mousemove', () => highlight(sortItems.indexOf(li)));
+}
+
+function openSort() {
+  sortMenu.hidden = false;
+  sortBtn.setAttribute('aria-expanded', 'true');
+  highlight(sortItems.findIndex(li => li.dataset.value === sortBy));
+  sortMenu.focus();
+}
+function closeSort() {
+  sortMenu.hidden = true;
+  sortBtn.setAttribute('aria-expanded', 'false');
+}
+function highlight(i) {
+  activeItem = i;
+  sortItems.forEach((li, j) => li.classList.toggle('active', j === i));
+}
+function chooseSort(li) {
+  sortBy = li.dataset.value;
+  sortItems.forEach(x => x.setAttribute('aria-selected', x === li));
+  $('sortLabel').textContent = li.textContent;
+  closeSort();
+  sortBtn.focus();
+  applyFilter();
+}
+
+sortBtn.addEventListener('click', () => sortMenu.hidden ? openSort() : closeSort());
+sortMenu.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') highlight((activeItem + 1) % sortItems.length);
+  else if (e.key === 'ArrowUp') highlight((activeItem - 1 + sortItems.length) % sortItems.length);
+  else if (e.key === 'Enter' || e.key === ' ') chooseSort(sortItems[activeItem]);
+  else if (e.key === 'Escape' || e.key === 'Tab') { closeSort(); sortBtn.focus(); }
+  else return;
+  e.preventDefault();
+});
+document.addEventListener('click', e => {
+  if (!sortMenu.hidden && !e.target.closest('.sort')) closeSort();
+});
+
 $('more').addEventListener('click', () => { shown += PAGE; render(); });
 $('openOrder').addEventListener('click', () => {
   renderLines();
