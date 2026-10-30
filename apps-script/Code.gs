@@ -20,14 +20,25 @@ const ITEMS_SHEET = 'Позиції';
 const MAX_ITEMS = 100;
 
 const ORDER_HEADERS = [
-  'Дата', '№ замовлення', 'ПІБ', 'Телефон', 'Email', 'Доставка', 'Коментар',
+  'Дата', '№ замовлення', 'ПІБ', 'Телефон', 'Email',
+  'Спосіб доставки', 'Адреса доставки', 'Отримувач', 'Оплата', 'Коментар',
   'Книг, шт.', 'Сума', 'Склад замовлення', 'Статус',
 ];
 const ITEM_HEADERS = ['Дата', '№ замовлення', '№ книги', 'Автор', 'Назва', 'Ціна', 'К-сть', 'Сума'];
 
-const STATUS_COL = ORDER_HEADERS.length; // «Статус» — остання колонка аркуша «Замовлення» (K)
+const STATUS_COL = ORDER_HEADERS.length; // «Статус» — остання колонка аркуша «Замовлення»
 const NEW_STATUS = 'Нове';
 // Статус і колір рядка; порядок = порядок у випадному списку
+// Способи доставки: назва в таблиці і обов'язкові поля
+const DELIVERY = {
+  np_branch: { label: 'Нова пошта, відділення', required: ['city', 'warehouse'] },
+  np_locker: { label: 'Нова пошта, поштомат', required: ['city', 'warehouse'] },
+  np_courier: { label: 'Нова пошта, кур’єр', required: ['city', 'street', 'house'] },
+  ukrposhta: { label: 'Укрпошта', required: ['city', 'zip'] },
+  pickup: { label: 'Самовивіз', required: [] },
+};
+const PAYMENTS = { cod: 'При отриманні', prepay: 'Передоплата на картку' };
+
 const STATUSES = [
   ['Нове', '#fff2cc'],
   ['Підтверджено', '#dbe9f6'],
@@ -55,9 +66,19 @@ function doPost(e) {
     if (!str_(customer.name) || !str_(customer.phone)) {
       return json_({ ok: false, error: 'Вкажіть ПІБ і телефон.' });
     }
-    const phoneDigits = str_(customer.phone).replace(/\D/g, '').length;
-    if (phoneDigits < 10 || phoneDigits > 15) {
-      return json_({ ok: false, error: 'Перевірте номер телефону.' });
+    if (!phoneOk_(customer.phone)) return json_({ ok: false, error: 'Перевірте номер телефону.' });
+
+    const delivery = customer.delivery || {};
+    const method = DELIVERY[delivery.method];
+    if (!method) return json_({ ok: false, error: 'Виберіть спосіб доставки.' });
+    if (method.required.some(f => !str_(delivery[f]))) {
+      return json_({ ok: false, error: 'Заповніть дані доставки.' });
+    }
+    const payment = PAYMENTS[customer.payment];
+    if (!payment) return json_({ ok: false, error: 'Виберіть спосіб оплати.' });
+    const recipient = customer.recipient;
+    if (recipient && (!str_(recipient.name) || !phoneOk_(recipient.phone))) {
+      return json_({ ok: false, error: 'Перевірте дані отримувача.' });
     }
 
     // Ціни й наявність беремо з каталогу, а не з браузера
@@ -104,7 +125,9 @@ function doPost(e) {
     const orders = ordersSheet_();
     const row = appendRows_(orders, [[
       now, orderId, text_(customer.name), "'" + str_(customer.phone), text_(customer.email),
-      text_(customer.delivery), text_(customer.comment), pcs, total, text_(summary), NEW_STATUS,
+      method.label, text_(address_(delivery)),
+      recipient ? text_(`${str_(recipient.name)}, ${str_(recipient.phone)}`) : 'Покупець',
+      payment, text_(customer.comment), pcs, total, text_(summary), NEW_STATUS,
     ]]);
     orders.getRange(row, STATUS_COL).setDataValidation(statusRule_());
 
@@ -151,28 +174,33 @@ function appendRows_(sheet, rows) {
 function ordersSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(ORDERS_SHEET);
-  // аркуш старого формату (рядок на книгу) не чіпаємо — лише перейменовуємо
-  if (sheet && sheet.getRange(1, STATUS_COL).getValue() !== 'Статус') {
-    let name = ORDERS_SHEET + ' (старі)';
-    for (let i = 2; ss.getSheetByName(name); i++) name = `${ORDERS_SHEET} (старі ${i})`;
-    sheet.setName(name);
-    sheet = null;
+  // аркуш з іншим набором колонок не чіпаємо — лише перейменовуємо
+  if (sheet) {
+    const head = sheet.getRange(1, 1, 1, sheet.getLastColumn() || 1).getValues()[0].map(String);
+    if (head.join('|') !== ORDER_HEADERS.join('|')) {
+      let name = ORDERS_SHEET + ' (старі)';
+      for (let i = 2; ss.getSheetByName(name); i++) name = `${ORDERS_SHEET} (старі ${i})`;
+      sheet.setName(name);
+      sheet = null;
+    }
   }
   if (!sheet) {
     sheet = createSheet_(ss, ORDERS_SHEET, ORDER_HEADERS);
-    sheet.getRange('A:K').setVerticalAlignment('middle');
-    sheet.setColumnWidth(7, 240);
-    sheet.getRange('G:G').setWrap(true); // Коментар
-    sheet.setColumnWidth(10, 360);
-    sheet.getRange('J:J').setWrap(true); // Склад замовлення
-    sheet.getRange('I:I').setNumberFormat('#,##0 "грн"');
+    const col = name => colLetter_(ORDER_HEADERS.indexOf(name) + 1);
+    const last = colLetter_(ORDER_HEADERS.length);
+    sheet.getRange(`A:${last}`).setVerticalAlignment('middle');
+    [['Адреса доставки', 260], ['Отримувач', 200], ['Коментар', 240], ['Склад замовлення', 360]].forEach(([name, width]) => {
+      sheet.setColumnWidth(ORDER_HEADERS.indexOf(name) + 1, width);
+      sheet.getRange(`${col(name)}:${col(name)}`).setWrap(true);
+    });
+    sheet.getRange(`${col('Сума')}:${col('Сума')}`).setNumberFormat('#,##0 "грн"');
 
     // кольори рядків за статусом
-    const range = sheet.getRange('A2:K');
+    const range = sheet.getRange(`A2:${last}`);
     sheet.setConditionalFormatRules(STATUSES
       .filter(([, color]) => color)
       .map(([name, color]) => SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied(`=$K2="${name}"`)
+        .whenFormulaSatisfied(`=$${last}2="${name}"`)
         .setBackground(color)
         .setRanges([range])
         .build()));
@@ -199,6 +227,28 @@ function statusRule_() {
     .requireValueInList(STATUSES.map(([name]) => name), true)
     .setAllowInvalid(false)
     .build();
+}
+
+// Адреса одним рядком для таблиці
+function address_(d) {
+  const v = name => str_(d[name]);
+  switch (d.method) {
+    case 'np_branch':
+    case 'np_locker': return `${v('city')}, ${v('warehouse')}`;
+    case 'np_courier': return [v('city'), v('street'), `буд. ${v('house')}`, v('flat') && `кв. ${v('flat')}`].filter(Boolean).join(', ');
+    case 'ukrposhta': return `${v('city')}, індекс ${v('zip')}`;
+    default: return '';
+  }
+}
+
+function phoneOk_(phone) {
+  const digits = str_(phone).replace(/\D/g, '').length;
+  return digits >= 10 && digits <= 15;
+}
+
+// 1 → A, 14 → N
+function colLetter_(n) {
+  return String.fromCharCode(64 + n);
 }
 
 function str_(v) {

@@ -270,7 +270,7 @@
   .form .full { grid-column: 1 / -1; }
   @media (max-width: 520px) { .form { grid-template-columns: 1fr; } .dlg { padding: 18px; } }
   label { display: grid; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
-  label input, label textarea {
+  label input:not([type=radio]):not([type=checkbox]), label textarea {
     font: inherit; font-weight: 400; color: var(--ink);
     background: var(--bg);
     border: 1px solid var(--line); border-radius: 10px;
@@ -278,9 +278,10 @@
     outline: none;
     transition: border-color .15s;
   }
-  label input:focus, label textarea:focus { border-color: var(--accent); }
+  label input:not([type=radio]):not([type=checkbox]):focus, label textarea:focus { border-color: var(--accent); }
+  label input:disabled { opacity: .6; cursor: not-allowed; }
   label .hint { font-weight: 400; color: var(--muted); }
-  label [aria-invalid="true"] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 6%, var(--bg)); }
+  label input[aria-invalid="true"]:not([type=radio]):not([type=checkbox]) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 6%, var(--bg)); }
   .err {
     min-height: 0; font-size: 12.5px; font-weight: 500; color: var(--danger);
     display: flex; align-items: center; gap: 5px;
@@ -289,6 +290,45 @@
   .err::before { content: "!"; flex: none; width: 15px; height: 15px; border-radius: 50%; background: var(--danger); color: var(--surface); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
   .counter { justify-self: end; font-size: 12px; font-weight: 400; margin-top: -2px; }
   textarea { resize: vertical; min-height: 70px; }
+  .form + .section, .note + .form, .note + .section { margin-top: 22px; }
+  .choices + .note { margin-top: -4px; }
+  .form + .form { margin-top: 12px; }
+
+  /* Вибір доставки й оплати */
+  .choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 8px; margin-bottom: 14px; }
+  .choice { display: block; cursor: pointer; }
+  .choice input { position: absolute; opacity: 0; pointer-events: none; }
+  .choice span {
+    display: grid; gap: 1px; height: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: var(--bg);
+    transition: border-color .15s, background .15s;
+  }
+  .choice b { color: var(--ink); font-size: 14px; }
+  .choice small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+  .choice:hover span { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .choice input:checked + span { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  .choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .note { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
+  .note:empty { display: none; }
+  .check { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 400; font-size: 14px; cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+
+  /* Підказки (населений пункт, відділення) */
+  .combo { position: relative; display: grid; }
+  .combo-list {
+    position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+    max-height: 260px; overflow-y: auto;
+    list-style: none; margin: 0; padding: 4px;
+    background: var(--surface);
+    border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+  }
+  .combo-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--ink); font-weight: 400; font-size: 14px; line-height: 1.35; }
+  .combo-list li.active { background: var(--accent-soft); }
+  .combo-list li.combo-empty { color: var(--muted); cursor: default; background: none; }
+
   .trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
   .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
   .msg { white-space: pre-line; margin-top: 12px; font-size: 14px; }
@@ -360,11 +400,45 @@
       <div class="total"><span>Разом</span><b id="dlgTotal"></b></div>
       <p class="section">Контактні дані</p>
       <div class="form">
-        <label>ПІБ *<input name="name" autocomplete="name" maxlength="100" aria-describedby="err-name"><span class="err" id="err-name"></span></label>
+        <label>Прізвище та ім’я *<input name="name" autocomplete="name" maxlength="100" aria-describedby="err-name"><span class="err" id="err-name"></span></label>
         <label>Телефон *<input name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+380 67 123 45 67" maxlength="20" aria-describedby="err-phone"><span class="err" id="err-phone"></span></label>
-        <label class="full"><span>Email <span class="hint">(необов'язково)</span></span><input name="email" type="email" autocomplete="email" maxlength="100" aria-describedby="err-email"><span class="err" id="err-email"></span></label>
-        <label class="full"><span>Доставка <span class="hint">(місто, відділення Нової пошти)</span></span><input name="delivery" maxlength="200" aria-describedby="err-delivery"><span class="err" id="err-delivery"></span></label>
-        <label class="full"><span>Коментар <span class="hint">(необов'язково)</span></span><textarea name="comment" maxlength="500"></textarea><span class="counter hint" id="commentCount"></span></label>
+        <label class="full"><span>Email <span class="hint">(необов’язково)</span></span><input name="email" type="email" autocomplete="email" maxlength="100" aria-describedby="err-email"><span class="err" id="err-email"></span></label>
+      </div>
+
+      <p class="section">Доставка</p>
+      <div class="choices" role="radiogroup" aria-label="Спосіб доставки">
+        <label class="choice"><input type="radio" name="method" value="np_branch" checked><span><b>Нова пошта</b><small>у відділення</small></span></label>
+        <label class="choice"><input type="radio" name="method" value="np_locker"><span><b>Нова пошта</b><small>у поштомат</small></span></label>
+        <label class="choice"><input type="radio" name="method" value="np_courier"><span><b>Нова пошта</b><small>кур’єром на адресу</small></span></label>
+        <label class="choice"><input type="radio" name="method" value="ukrposhta"><span><b>Укрпошта</b><small>у відділення</small></span></label>
+        <label class="choice"><input type="radio" name="method" value="pickup"><span><b>Самовивіз</b><small>заберу сам(а)</small></span></label>
+      </div>
+      <div class="form">
+        <label class="full" data-for="np_branch np_locker np_courier ukrposhta">Населений пункт *
+          <div class="combo"><input name="city" autocomplete="off" maxlength="120" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-describedby="err-city"><ul class="combo-list" role="listbox" hidden></ul></div>
+          <span class="err" id="err-city"></span></label>
+        <label class="full" data-for="np_branch np_locker"><span id="whLabel">Відділення *</span>
+          <div class="combo"><input name="warehouse" autocomplete="off" maxlength="200" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-describedby="err-warehouse"><ul class="combo-list" role="listbox" hidden></ul></div>
+          <span class="err" id="err-warehouse"></span></label>
+        <label class="full" data-for="np_courier" hidden>Вулиця *<input name="street" autocomplete="address-line1" maxlength="120" aria-describedby="err-street"><span class="err" id="err-street"></span></label>
+        <label data-for="np_courier" hidden>Будинок *<input name="house" maxlength="20" aria-describedby="err-house"><span class="err" id="err-house"></span></label>
+        <label data-for="np_courier" hidden><span>Квартира <span class="hint">(якщо є)</span></span><input name="flat" maxlength="20"></label>
+        <label data-for="ukrposhta" hidden>Індекс відділення *<input name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="79000" aria-describedby="err-zip"><span class="err" id="err-zip"></span></label>
+        <p class="note full" data-for="pickup" hidden>Ми зв’яжемося з вами, щоб домовитися про місце і час.</p>
+        <label class="check full"><input type="checkbox" name="otherRecipient"> Отримувати буде інша людина</label>
+        <label data-recipient hidden>Прізвище та ім’я отримувача *<input name="rname" maxlength="100" aria-describedby="err-rname"><span class="err" id="err-rname"></span></label>
+        <label data-recipient hidden>Телефон отримувача *<input name="rphone" type="tel" inputmode="tel" placeholder="+380 67 123 45 67" maxlength="20" aria-describedby="err-rphone"><span class="err" id="err-rphone"></span></label>
+      </div>
+
+      <p class="section">Оплата</p>
+      <div class="choices" role="radiogroup" aria-label="Спосіб оплати">
+        <label class="choice"><input type="radio" name="payment" value="cod" checked><span><b>При отриманні</b><small id="codSub">накладений платіж</small></span></label>
+        <label class="choice"><input type="radio" name="payment" value="prepay"><span><b>Передоплата</b><small>на картку</small></span></label>
+      </div>
+      <p class="note" id="payNote"></p>
+
+      <div class="form">
+        <label class="full"><span>Коментар <span class="hint">(необов’язково)</span></span><textarea name="comment" maxlength="500"></textarea><span class="counter hint" id="commentCount"></span></label>
         <input class="trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       </div>
       <div class="msg error" id="formMsg"></div>
@@ -614,31 +688,220 @@ function refreshRow(id) {
   if (old) old.replaceWith(bookRow(byId.get(id)));
 }
 
-// Валідація форми замовлення: кожне правило повертає текст помилки або ''
+// ---------- Форма замовлення ----------
+const form = $('orderForm');
+const F = form.elements;
+
+// Що треба заповнити для кожного способу доставки
+const METHODS = {
+  np_branch:  { fields: ['city', 'warehouse'], np: true, wh: 'Відділення', cats: ['Branch', 'DropOff'] },
+  np_locker:  { fields: ['city', 'warehouse'], np: true, wh: 'Поштомат', cats: ['Postomat'] },
+  np_courier: { fields: ['city', 'street', 'house', 'flat'], np: true },
+  ukrposhta:  { fields: ['city', 'zip'] },
+  pickup:     { fields: [] },
+};
+const method = () => F.method.value;
+
+// Довідник Нової пошти: міста й відділення. Працює без ключа; якщо недоступний —
+// поля стають звичайними текстовими
+const NP_URL = 'https://api.novaposhta.ua/v2.0/json/';
+const NP_POSTOMAT = 'f9316480-5f2d-425d-bc2c-ac7cd29decf0';
+let npOnline = true;
+
+async function np(calledMethod, methodProperties) {
+  const res = await fetch(NP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ apiKey: '', modelName: 'Address', calledMethod, methodProperties }),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.errors.join('; '));
+  return data.data;
+}
+
+// Поле з випадним списком підказок
+function combo(input, { minChars, search, onPick }) {
+  const list = input.nextElementSibling;
+  let items = [];
+  let active = -1;
+  let timer;
+  let seq = 0;
+
+  const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); };
+  const message = text => {
+    list.textContent = '';
+    list.append(el('li', 'combo-empty', text));
+    list.hidden = false;
+  };
+  const draw = () => {
+    if (!items.length) return message('Нічого не знайдено');
+    list.textContent = '';
+    items.forEach((it, i) => {
+      const li = el('li', i === active ? 'active' : null, it.label);
+      li.setAttribute('role', 'option');
+      li.addEventListener('mousedown', e => { e.preventDefault(); pick(it); });
+      list.append(li);
+    });
+    list.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    list.children[active]?.scrollIntoView({ block: 'nearest' });
+  };
+  const pick = it => {
+    input.value = it.label;
+    input.dataset.ref = it.ref;
+    close();
+    onPick?.(it);
+    if (input.getAttribute('aria-invalid') === 'true') validateField(input);
+  };
+  const run = async () => {
+    const q = input.value.trim();
+    const my = ++seq;
+    if (!npOnline || !METHODS[method()].np || q.length < minChars) return close();
+    message('Шукаємо…');
+    try {
+      const found = await search(q);
+      if (my !== seq) return;
+      items = found;
+      active = items.length ? 0 : -1;
+      draw();
+    } catch (err) {
+      if (my !== seq) return;
+      console.error(err);
+      npOnline = false;
+      F.warehouse.disabled = false;
+      close();
+    }
+  };
+
+  input.addEventListener('input', () => {
+    delete input.dataset.ref;
+    onPick?.(null);
+    clearTimeout(timer);
+    timer = setTimeout(run, 250);
+  });
+  input.addEventListener('focus', () => { if (!input.dataset.ref) run(); });
+  input.addEventListener('click', () => { if (list.hidden && !input.dataset.ref) run(); });
+  input.addEventListener('blur', () => { seq++; close(); });
+  input.addEventListener('keydown', e => {
+    if (list.hidden || !items.length) return;
+    if (e.key === 'ArrowDown') active = (active + 1) % items.length;
+    else if (e.key === 'ArrowUp') active = (active - 1 + items.length) % items.length;
+    else if (e.key === 'Enter') { pick(items[active]); e.preventDefault(); return; }
+    else if (e.key === 'Escape') { close(); e.preventDefault(); return; }
+    else return;
+    e.preventDefault();
+    draw();
+  });
+}
+
+combo(F.city, {
+  minChars: 2,
+  search: async q => {
+    const data = await np('searchSettlements', { CityName: q, Limit: '20', Page: '1' });
+    const courier = method() === 'np_courier';
+    return (data[0]?.Addresses || [])
+      .filter(a => courier ? a.AddressDeliveryAllowed : a.Warehouses > 0)
+      .map(a => ({ label: a.Present, ref: a.DeliveryCity }));
+  },
+  onPick: () => resetWarehouse(),
+});
+
+combo(F.warehouse, {
+  minChars: 0,
+  search: async q => {
+    const m = METHODS[method()];
+    const props = { CityRef: F.city.dataset.ref, Limit: '200', Page: '1' };
+    if (q) props.FindByString = q;
+    if (m.cats.includes('Postomat')) props.TypeOfWarehouseRef = NP_POSTOMAT;
+    const data = await np('getWarehouses', props);
+    return data
+      .filter(w => m.cats.includes(w.CategoryOfWarehouse) && w.WarehouseStatus === 'Working' && w.DenyToSelect !== '1')
+      // поштомати в під'їздах і на підприємствах — не для всіх
+      .filter(w => !/тільки для|лише для|для мешканців|для працівників|для співробітників/i.test(w.Description))
+      .sort((a, b) => (b.Number === q) - (a.Number === q) || Number(a.Number) - Number(b.Number))
+      .slice(0, 60)
+      .map(w => ({ label: w.Description, ref: w.Ref }));
+  },
+});
+
+function resetWarehouse() {
+  F.warehouse.value = '';
+  delete F.warehouse.dataset.ref;
+  clearError(F.warehouse);
+  const needCity = npOnline && !F.city.dataset.ref;
+  F.warehouse.disabled = needCity;
+  const what = METHODS[method()].wh === 'Поштомат' ? 'поштомату' : 'відділення';
+  F.warehouse.placeholder = needCity ? 'Спочатку виберіть місто' : `Номер або адреса ${what}`;
+}
+
+// Показує лише поля вибраного способу доставки
+function updateDelivery() {
+  const m = METHODS[method()];
+  for (const node of form.querySelectorAll('[data-for]')) {
+    node.hidden = !node.dataset.for.split(' ').includes(method());
+  }
+  for (const node of form.querySelectorAll('[data-recipient]')) node.hidden = !F.otherRecipient.checked;
+  if (m.wh) $('whLabel').textContent = m.wh + ' *';
+  F.city.placeholder = m.np && npOnline ? 'Почніть вводити назву' : 'Назва населеного пункту';
+
+  const pickup = method() === 'pickup';
+  $('codSub').textContent = pickup ? 'готівкою або переказом' : 'накладений платіж';
+  $('payNote').textContent = F.payment.value === 'prepay'
+    ? 'Після підтвердження замовлення надішлемо реквізити для оплати.'
+    : pickup ? '' : 'Перевізник бере комісію за грошовий переказ за своїми тарифами.';
+}
+
+let lastMethod = method();
+form.addEventListener('change', e => {
+  if (e.target.name === 'method') {
+    // відділення і поштомат — різні списки, а місто без вибору зі списку Новій пошті не підходить
+    if (!METHODS[lastMethod].np && METHODS[method()].np) delete F.city.dataset.ref;
+    lastMethod = method();
+    resetWarehouse();
+    for (const input of Object.keys(RULES).map(n => F[n])) if (input.closest('[hidden]')) clearError(input);
+  }
+  if (['method', 'payment', 'otherRecipient'].includes(e.target.name)) updateDelivery();
+});
+
+// Валідація: кожне правило повертає текст помилки або ''
 const phoneDigits = v => v.replace(/\D/g, '');
+const NAME_RE = /^[\p{L}][\p{L}\s'’ʼ.\-]*$/u;
+
+function nameRule(v, empty) {
+  if (!v) return empty;
+  if (!NAME_RE.test(v)) return 'Лише літери, пробіли, апостроф і дефіс';
+  if (v.split(/\s+/).length < 2) return 'Вкажіть прізвище та ім’я, як у документі';
+  return '';
+}
+function phoneRule(v, empty) {
+  if (!v) return empty;
+  if (/[^\d\s()+\-]/.test(v)) return 'Номер може містити лише цифри';
+  const d = phoneDigits(v);
+  if (/^0\d{9}$/.test(d) || /^380\d{9}$/.test(d)) return '';
+  if (v.startsWith('+') && d.length >= 10 && d.length <= 15 && !d.startsWith('380')) return '';
+  return 'Формат: +380 67 123 45 67 або 067 123 45 67';
+}
+
 const RULES = {
-  name(v) {
-    if (!v) return 'Вкажіть ваше ім’я та прізвище';
-    if (v.length < 2) return 'Занадто коротко';
-    if (!/^[\p{L}][\p{L}\s'’ʼ.\-]*$/u.test(v)) return 'Лише літери, пробіли, апостроф і дефіс';
+  name: v => nameRule(v, 'Вкажіть прізвище та ім’я'),
+  phone: v => phoneRule(v, 'Вкажіть номер телефону'),
+  email: v => !v || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? '' : 'Схоже, в адресі помилка: приклад name@gmail.com',
+  city(v) {
+    if (!v) return 'Вкажіть населений пункт';
+    if (METHODS[method()].np && npOnline && !F.city.dataset.ref) return 'Виберіть населений пункт зі списку';
     return '';
   },
-  phone(v) {
-    if (!v) return 'Вкажіть номер телефону';
-    if (/[^\d\s()+\-]/.test(v)) return 'Номер може містити лише цифри';
-    const d = phoneDigits(v);
-    if (/^0\d{9}$/.test(d) || /^380\d{9}$/.test(d)) return '';
-    if (v.trim().startsWith('+') && d.length >= 10 && d.length <= 15 && !d.startsWith('380')) return '';
-    return 'Формат: +380 67 123 45 67 або 067 123 45 67';
-  },
-  email(v) {
-    if (!v) return '';
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? '' : 'Схоже, в адресі помилка: приклад name@gmail.com';
-  },
-  delivery(v) {
-    if (v && v.length < 3) return 'Вкажіть місто і номер відділення';
+  warehouse(v) {
+    const what = METHODS[method()].wh === 'Поштомат' ? 'поштомат' : 'відділення';
+    if (!v) return `Виберіть ${what}`;
+    if (npOnline && !F.warehouse.dataset.ref) return `Виберіть ${what} зі списку`;
     return '';
   },
+  street: v => v ? '' : 'Вкажіть вулицю',
+  house: v => v ? '' : 'Вкажіть номер будинку',
+  zip: v => /^\d{5}$/.test(v) ? '' : 'Індекс — 5 цифр, наприклад 79000',
+  rname: v => nameRule(v, 'Вкажіть прізвище та ім’я отримувача'),
+  rphone: v => phoneRule(v, 'Вкажіть телефон отримувача'),
 };
 
 // +380671234567 → +380 67 123 45 67
@@ -655,47 +918,73 @@ function validateField(input) {
   $('err-' + input.name).textContent = msg;
   return !msg;
 }
+function clearError(input) {
+  input.removeAttribute('aria-invalid');
+  delete input.dataset.touched;
+  $('err-' + input.name).textContent = '';
+}
 
-const fields = Object.keys(RULES).map(name => $('orderForm').elements[name]);
-for (const input of fields) {
+// Поля, які зараз треба перевірити
+function activeFields() {
+  const names = ['name', 'phone', 'email', ...METHODS[method()].fields.filter(n => RULES[n])];
+  if (F.otherRecipient.checked) names.push('rname', 'rphone');
+  return names.map(n => F[n]);
+}
+
+for (const name of Object.keys(RULES)) {
+  const input = F[name];
   // поки поле не покинули — не сваримося; після першої помилки перевіряємо на льоту
   input.addEventListener('blur', () => {
-    if (input.name === 'phone' && !RULES.phone(input.value.trim())) input.value = formatPhone(input.value);
-    if (input.value.trim() || input.dataset.touched) validateField(input);
-    input.dataset.touched = '1';
+    if ((name === 'phone' || name === 'rphone') && !RULES[name](input.value.trim())) input.value = formatPhone(input.value);
+    // для підказок даємо спершу клацнути по пункту списку
+    setTimeout(() => {
+      if (input.value.trim() || input.dataset.touched) validateField(input);
+      input.dataset.touched = '1';
+    }, 0);
   });
   input.addEventListener('input', () => {
     if (input.getAttribute('aria-invalid') === 'true') validateField(input);
   });
 }
+F.zip.addEventListener('input', () => { F.zip.value = F.zip.value.replace(/\D/g, ''); });
 
-const comment = $('orderForm').elements.comment;
+const comment = F.comment;
 comment.addEventListener('input', () => {
   const left = comment.maxLength - comment.value.length;
   $('commentCount').textContent = left < 100 ? `Залишилось символів: ${left}` : '';
 });
 
 function resetValidation() {
-  for (const input of fields) {
-    input.removeAttribute('aria-invalid');
-    delete input.dataset.touched;
-    $('err-' + input.name).textContent = '';
-  }
+  for (const name of Object.keys(RULES)) clearError(F[name]);
 }
+
+updateDelivery();
+resetWarehouse();
 
 async function submitOrder(e) {
   e.preventDefault();
-  const form = $('orderForm');
-  const invalid = fields.filter(input => !validateField(input));
+  const invalid = activeFields().filter(input => !validateField(input));
   if (invalid.length) {
     invalid[0].focus();
     invalid[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
     return;
   }
-  form.elements.phone.value = formatPhone(form.elements.phone.value);
-  const fd = new FormData(form);
+  F.phone.value = formatPhone(F.phone.value);
+  if (F.otherRecipient.checked) F.rphone.value = formatPhone(F.rphone.value);
+
+  const v = name => F[name].value.trim();
+  const delivery = { method: method() };
+  for (const name of METHODS[method()].fields) delivery[name] = v(name);
+  if (F.city.dataset.ref) delivery.cityRef = F.city.dataset.ref;
+  if (F.warehouse.dataset.ref) delivery.warehouseRef = F.warehouse.dataset.ref;
+
   const payload = {
-    customer: Object.fromEntries(['name', 'phone', 'email', 'delivery', 'comment', 'website'].map(k => [k, fd.get(k)])),
+    customer: {
+      name: v('name'), phone: v('phone'), email: v('email'), comment: v('comment'), website: v('website'),
+      delivery,
+      payment: F.payment.value,
+      recipient: F.otherRecipient.checked ? { name: v('rname'), phone: v('rphone') } : null,
+    },
     items: cartLines().map(l => ({ id: l.book.id, qty: l.qty })),
   };
 
