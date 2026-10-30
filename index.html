@@ -7,6 +7,7 @@
 <meta name="theme-color" content="#2b2b2b" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
 <title>Бібліотека Оленки Шевчук</title>
+<meta name="author" content="Ivan Khomych">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -89,7 +90,7 @@
   }
 
   /* Скло */
-  .glass, .list, .toolbar, .count, .state, footer span {
+  .glass, .list, .toolbar, .count, .state {
     background: var(--glass);
     -webkit-backdrop-filter: var(--glass-blur);
     backdrop-filter: var(--glass-blur);
@@ -395,8 +396,12 @@
   .done h2 { margin-bottom: 8px; }
   .done p { color: var(--muted); margin: 0 auto 22px; max-width: 380px; }
 
-  footer { text-align: center; font-size: 13px; padding: 40px 0 0; }
-  footer span { display: inline-block; padding: 6px 14px; border-radius: 999px; color: var(--muted); }
+  /* Підпис автора: ледь помітний, прямо на фото; тінь тримає його читабельним на білих сторінках */
+  footer.wrap {
+    text-align: center; margin-top: 24px;
+    font-size: 12px; color: rgba(255, 255, 255, .85);
+    text-shadow: 0 0 6px #000, 0 0 12px rgba(0, 0, 0, .8);
+  }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -443,7 +448,7 @@
   <div class="more" id="more" aria-hidden="true" hidden></div>
 </main>
 
-<footer class="wrap"><span>Бібліотека Оленки Шевчук</span></footer>
+<footer class="wrap">Made by Ivan Khomych</footer>
 
 <div class="cartbar" id="cartbar">
   <div class="info">
