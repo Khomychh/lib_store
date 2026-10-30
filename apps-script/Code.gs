@@ -19,6 +19,10 @@ const PHOTOS_FOLDER = '';
 const ORDERS_SHEET = 'Замовлення';
 const ITEMS_SHEET = 'Позиції';
 
+// Сповіщення в Telegram про нові замовлення. Токен бота і chat_id зберігаються не тут
+// (репозиторій публічний), а у Властивостях скрипта: Налаштування проєкту → Властивості скрипта →
+// TELEGRAM_TOKEN і TELEGRAM_CHAT_ID. Якщо їх немає — сповіщення просто не надсилаються.
+
 // Захист від спаму: скільки різних книг можна в одному замовленні
 const MAX_ITEMS = 100;
 
@@ -182,7 +186,7 @@ function doPost(e) {
 
     const pcs = lines.reduce((s, l) => s + l.qty, 0);
     const summary = lines
-      .map(l => `${l.book.title} × ${l.qty} — ${l.sum} грн`)
+      .map(l => `№${l.book.id} ${l.book.author ? l.book.author + ', ' : ''}«${l.book.title}» × ${l.qty} — ${l.sum} грн`)
       .join('\n');
 
     appendRows_(itemsSheet_(), lines.map(l => [
@@ -198,6 +202,22 @@ function doPost(e) {
     ]]);
     orders.getRange(row, STATUS_COL).setDataValidation(statusRule_());
 
+    // null — рядок пропускається, '' — порожній рядок-роздільник
+    notifyTelegram_([
+      `🛒 Нове замовлення ${orderId}`,
+      '',
+      `${str_(customer.name)}, ${str_(customer.phone)}`,
+      str_(customer.email) || null,
+      recipient ? `Отримувач: ${str_(recipient.name)}, ${str_(recipient.phone)}` : null,
+      [method.label, address_(delivery)].filter(Boolean).join(': '),
+      `Оплата: ${payment}`,
+      str_(customer.comment) ? `Коментар: ${str_(customer.comment)}` : null,
+      '',
+      summary,
+      '',
+      `Разом: ${pcs} шт., ${total} грн`,
+    ].filter(l => l !== null).join('\n'));
+
     return json_({ ok: true, orderId, total });
   } catch (err) {
     console.error(err);
@@ -205,6 +225,34 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Помилка Telegram не повинна зламати замовлення — воно вже записане в таблицю
+function notifyTelegram_(text) {
+  const props = PropertiesService.getScriptProperties();
+  const token = props.getProperty('TELEGRAM_TOKEN');
+  const chatId = props.getProperty('TELEGRAM_CHAT_ID');
+  if (!token || !chatId) return;
+  try {
+    const res = UrlFetchApp.fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({ chat_id: chatId, text: text.slice(0, 4000) }),
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) console.error('Telegram:', res.getContentText());
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+// Запустіть вручну в редакторі, щоб перевірити налаштування Telegram
+function testTelegram() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty('TELEGRAM_TOKEN') || !props.getProperty('TELEGRAM_CHAT_ID')) {
+    throw new Error('Додайте TELEGRAM_TOKEN і TELEGRAM_CHAT_ID у Властивості скрипта');
+  }
+  notifyTelegram_('✅ Сповіщення про замовлення працюють');
 }
 
 function readCatalog_() {
