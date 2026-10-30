@@ -20,12 +20,12 @@ const ITEMS_SHEET = 'Позиції';
 const MAX_ITEMS = 100;
 
 const ORDER_HEADERS = [
-  'Дата', '№ замовлення', 'Статус', 'ПІБ', 'Телефон', 'Email', 'Доставка', 'Коментар',
-  'Книг, шт.', 'Сума', 'Склад замовлення',
+  'Дата', '№ замовлення', 'ПІБ', 'Телефон', 'Email', 'Доставка', 'Коментар',
+  'Книг, шт.', 'Сума', 'Склад замовлення', 'Статус',
 ];
 const ITEM_HEADERS = ['Дата', '№ замовлення', '№ книги', 'Автор', 'Назва', 'Ціна', 'К-сть', 'Сума'];
 
-const STATUS_COL = 3; // колонка «Статус» в аркуші «Замовлення»
+const STATUS_COL = ORDER_HEADERS.length; // «Статус» — остання колонка аркуша «Замовлення» (K)
 const NEW_STATUS = 'Нове';
 // Статус і колір рядка; порядок = порядок у випадному списку
 const STATUSES = [
@@ -103,8 +103,8 @@ function doPost(e) {
 
     const orders = ordersSheet_();
     const row = appendRows_(orders, [[
-      now, orderId, NEW_STATUS, text_(customer.name), "'" + str_(customer.phone), text_(customer.email),
-      text_(customer.delivery), text_(customer.comment), pcs, total, text_(summary),
+      now, orderId, text_(customer.name), "'" + str_(customer.phone), text_(customer.email),
+      text_(customer.delivery), text_(customer.comment), pcs, total, text_(summary), NEW_STATUS,
     ]]);
     orders.getRange(row, STATUS_COL).setDataValidation(statusRule_());
 
@@ -153,21 +153,26 @@ function ordersSheet_() {
   let sheet = ss.getSheetByName(ORDERS_SHEET);
   // аркуш старого формату (рядок на книгу) не чіпаємо — лише перейменовуємо
   if (sheet && sheet.getRange(1, STATUS_COL).getValue() !== 'Статус') {
-    sheet.setName(ORDERS_SHEET + ' (старі)');
+    let name = ORDERS_SHEET + ' (старі)';
+    for (let i = 2; ss.getSheetByName(name); i++) name = `${ORDERS_SHEET} (старі ${i})`;
+    sheet.setName(name);
     sheet = null;
   }
   if (!sheet) {
     sheet = createSheet_(ss, ORDERS_SHEET, ORDER_HEADERS);
-    sheet.setColumnWidth(ORDER_HEADERS.length, 360);
-    sheet.getRange('K:K').setWrap(true);
-    sheet.getRange('J:J').setNumberFormat('#,##0 "грн"');
+    sheet.getRange('A:K').setVerticalAlignment('middle');
+    sheet.setColumnWidth(7, 240);
+    sheet.getRange('G:G').setWrap(true); // Коментар
+    sheet.setColumnWidth(10, 360);
+    sheet.getRange('J:J').setWrap(true); // Склад замовлення
+    sheet.getRange('I:I').setNumberFormat('#,##0 "грн"');
 
     // кольори рядків за статусом
     const range = sheet.getRange('A2:K');
     sheet.setConditionalFormatRules(STATUSES
       .filter(([, color]) => color)
       .map(([name, color]) => SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied(`=$C2="${name}"`)
+        .whenFormulaSatisfied(`=$K2="${name}"`)
         .setBackground(color)
         .setRanges([range])
         .build()));

@@ -716,7 +716,7 @@ async function submitOrder(e) {
     saveCart();
     updateCartBar();
     render();
-    $('doneText').textContent = `Замовлення № ${data.orderId} на суму ${money(data.total)} прийнято. Ми зв'яжемося з вами найближчим часом.`;
+    $('doneText').textContent = `Ваше замовлення на суму ${money(data.total)} прийнято. Ми зв'яжемося з вами найближчим часом.`;
     $('orderBody').hidden = true;
     $('orderDone').hidden = false;
   } catch (err) {
