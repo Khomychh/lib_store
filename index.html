@@ -200,7 +200,7 @@
   }
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 120px 128px;
+    grid-template-columns: 54px minmax(0, 1fr) 120px 128px;
     gap: 6px 20px;
     align-items: center;
     padding: 14px 20px;
@@ -221,9 +221,28 @@
   .stock { color: var(--muted); font-size: 12px; margin-top: 5px; white-space: nowrap; }
   .ctrl { justify-self: end; }
 
+  /* Обкладинка; без фото — заглушка з іконкою */
+  .cover {
+    width: 54px; aspect-ratio: 2 / 3;
+    border: 0; padding: 0; border-radius: 6px; overflow: hidden;
+    background: var(--accent-soft); color: var(--muted);
+    display: grid; place-items: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .18);
+  }
+  .cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .15s; }
+  button.cover { cursor: zoom-in; position: relative; }
+  .cover-count {
+    position: absolute; right: 3px; bottom: 3px;
+    min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+    background: rgba(0, 0, 0, .62); color: #fff;
+    font-size: 11px; font-weight: 600; line-height: 18px; text-align: center;
+  }
+  button.cover:hover img { opacity: .85; }
+
   @media (max-width: 600px) {
-    .row { grid-template-columns: 1fr auto; padding: 14px 16px; }
-    .row .info { grid-column: 1 / -1; }
+    .row { grid-template-columns: 46px 1fr auto; gap: 6px 14px; padding: 14px 16px; }
+    .row .cover { width: 46px; grid-row: span 2; align-self: start; }
+    .row .info { grid-column: 2 / -1; }
     .pricebox { text-align: left; display: flex; align-items: baseline; gap: 10px; }
     .row .title { font-size: 15.5px; }
     .sort-btn { padding: 11px 14px; }
@@ -396,6 +415,34 @@
   .done h2 { margin-bottom: 8px; }
   .done p { color: var(--muted); margin: 0 auto 22px; max-width: 380px; }
 
+  /* Перегляд обкладинки: лише фото над затемненим тлом */
+  dialog.viewer {
+    width: auto; max-width: calc(100% - 24px); max-height: none;
+    background: none; border: 0; box-shadow: none; overflow: visible;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    cursor: zoom-out;
+  }
+  .viewer figure { margin: 0; }
+  /* висота фіксована, щоб мініатюра і велике фото займали те саме місце */
+  .viewer img {
+    display: block; height: min(720px, calc(100dvh - 110px)); width: auto; max-width: 100%;
+    object-fit: contain;
+    filter: drop-shadow(0 18px 40px rgba(0, 0, 0, .5));
+  }
+  .viewer figcaption { margin-top: 12px; text-align: center; color: #fff; font: 600 15px/1.35 Literata, Georgia, serif; text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
+  .viewer .x { position: fixed; top: 12px; right: 12px; color: #fff; background: rgba(0, 0, 0, .45); }
+  .viewer .x:hover { background: rgba(0, 0, 0, .65); }
+  .viewer-count { display: block; margin-top: 2px; font: 500 13px Onest, system-ui, sans-serif; opacity: .8; }
+  .viewer .nav {
+    position: fixed; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; border: 0; border-radius: 50%;
+    background: rgba(0, 0, 0, .45); color: #fff;
+    font-size: 26px; line-height: 1; cursor: pointer;
+  }
+  .viewer .nav:hover { background: rgba(0, 0, 0, .65); }
+  .viewer .prev { left: 12px; }
+  .viewer .next { right: 12px; }
+
   /* Підпис автора: ледь помітний, прямо на фото; тінь тримає його читабельним на білих сторінках */
   footer.wrap {
     text-align: center; margin-top: 24px;
@@ -524,6 +571,16 @@
   </form>
 </dialog>
 
+<dialog id="viewer" class="viewer" aria-label="Обкладинка">
+  <figure>
+    <img id="viewerImg" alt="" referrerpolicy="no-referrer">
+    <figcaption><span id="viewerCaption"></span><span class="viewer-count" id="viewerCount"></span></figcaption>
+  </figure>
+  <button type="button" class="nav prev" id="viewerPrev" aria-label="Попереднє фото">‹</button>
+  <button type="button" class="nav next" id="viewerNext" aria-label="Наступне фото">›</button>
+  <button type="button" class="x" aria-label="Закрити">×</button>
+</dialog>
+
 <script>
 // URL веб-застосунку Google Apps Script (див. README.md)
 const API_URL = 'https://script.google.com/macros/s/AKfycbzECOv83-3zeRQTkKGr7dDt73XYR64jI6Qv5gPQTOQrSvt9n8VFlsrIMkWJWAIaV6jO/exec';
@@ -556,7 +613,7 @@ function showState(text, isError) {
 }
 
 function renderSkeleton() {
-  const row = `<li class="row skeleton"><div class="info">
+  const row = `<li class="row skeleton"><div class="cover"></div><div class="info">
     <div class="line" style="width:60%;height:16px"></div><div class="line" style="width:30%"></div></div>
     <div class="line" style="width:70px;height:16px;justify-self:end"></div><div></div></li>`;
   $('list').innerHTML = row.repeat(10);
@@ -673,9 +730,81 @@ function bookRow(b) {
   const priceBox = el('div', 'pricebox');
   priceBox.append(el('div', 'price', money(b.price)), el('div', 'stock', `в наявності: ${b.stock}`));
 
-  li.append(info, priceBox, cartControl(b, li));
+  li.append(cover(b), info, priceBox, cartControl(b, li));
   li.classList.toggle('in-cart', !!cart[b.id]);
   return li;
+}
+
+// Обкладинки — мініатюри Google Диску потрібної ширини: Google сам зменшує
+// фото, тож навіть важкий оригінал не гальмує сайт
+const photoUrl = (id, width) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${width}`;
+const COVER_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v18H6.5A2.5 2.5 0 0 1 4 18.5"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/></svg>';
+
+function cover(b) {
+  const photos = b.photos || [];
+  if (!photos.length) return coverStub();
+  const btn = el('button', 'cover');
+  btn.type = 'button';
+  btn.setAttribute('aria-label', photos.length > 1
+    ? `Переглянути фото (${photos.length}): ${b.title}`
+    : `Збільшити обкладинку: ${b.title}`);
+  const img = el('img');
+  img.alt = '';
+  img.loading = 'lazy';
+  img.decoding = 'async';
+  img.referrerPolicy = 'no-referrer';
+  img.src = photoUrl(photos[0], 160);
+  // файл видалили або закрили доступ — показуємо заглушку
+  img.onerror = () => btn.replaceWith(coverStub());
+  btn.onclick = () => openPhoto(b);
+  btn.append(img);
+  if (photos.length > 1) btn.append(el('span', 'cover-count', photos.length));
+  return btn;
+}
+
+function coverStub() {
+  const stub = el('div', 'cover');
+  stub.innerHTML = COVER_ICON;
+  stub.setAttribute('aria-hidden', 'true');
+  return stub;
+}
+
+// Галерея: яка книга відкрита і яке з її фото показано
+let gallery = { book: null, index: 0 };
+
+function openPhoto(b) {
+  gallery = { book: b, index: 0 };
+  const many = b.photos.length > 1;
+  $('viewerPrev').hidden = $('viewerNext').hidden = !many;
+  $('viewerCaption').textContent = b.title;
+  showPhoto(0);
+  $('viewer').showModal();
+}
+
+function showPhoto(index) {
+  const photos = gallery.book.photos;
+  const n = photos.length;
+  gallery.index = (index + n) % n;
+  const id = photos[gallery.index];
+  const img = $('viewerImg');
+  $('viewer').dataset.photo = id;
+  // поки велике фото вантажиться, показуємо мініатюру — вона вже в кеші браузера або легка
+  img.src = photoUrl(id, 160);
+  img.alt = `${gallery.book.title}${n > 1 ? `, фото ${gallery.index + 1}` : ''}`;
+  $('viewerCount').textContent = n > 1 ? `${gallery.index + 1} / ${n}` : '';
+  loadBig(id, () => { if ($('viewer').dataset.photo === id) img.src = photoUrl(id, 1000); });
+  // сусідні фото вантажимо заздалегідь, щоб гортання не гальмувало
+  if (n > 1) {
+    loadBig(photos[(gallery.index + 1) % n]);
+    loadBig(photos[(gallery.index - 1 + n) % n]);
+  }
+}
+
+function loadBig(id, onload) {
+  const big = new Image();
+  big.referrerPolicy = 'no-referrer';
+  if (onload) big.onload = onload;
+  big.src = photoUrl(id, 1000);
 }
 
 function cartControl(b, row) {
@@ -1164,6 +1293,27 @@ $('openOrder').addEventListener('click', () => {
 $('closeOrder').addEventListener('click', () => $('dialog').close());
 $('doneClose').addEventListener('click', () => $('dialog').close());
 $('orderForm').addEventListener('submit', submitOrder);
+// клік будь-де — по фото, тлу чи хрестику — закриває перегляд; стрілки гортають
+const viewer = $('viewer');
+viewer.addEventListener('click', () => viewer.close());
+$('viewerPrev').addEventListener('click', e => { e.stopPropagation(); showPhoto(gallery.index - 1); });
+$('viewerNext').addEventListener('click', e => { e.stopPropagation(); showPhoto(gallery.index + 1); });
+viewer.addEventListener('keydown', e => {
+  if (gallery.book.photos.length < 2) return;
+  if (e.key === 'ArrowLeft') showPhoto(gallery.index - 1);
+  else if (e.key === 'ArrowRight') showPhoto(gallery.index + 1);
+});
+// свайп на телефоні
+let touchX = null;
+viewer.addEventListener('touchstart', e => { touchX = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+viewer.addEventListener('touchend', e => {
+  if (touchX == null || gallery.book.photos.length < 2) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  touchX = null;
+  if (Math.abs(dx) < 50) return;
+  e.preventDefault(); // свайп — не клік, перегляд не закриваємо
+  showPhoto(gallery.index + (dx < 0 ? 1 : -1));
+});
 
 init();
 </script>

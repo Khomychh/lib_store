@@ -12,6 +12,9 @@
 const CATALOG_ID = 'ВСТАВТЕ_ID_ТАБЛИЦІ_З_КНИГАМИ';
 // Назва аркуша з книгами; порожньо — перший аркуш
 const CATALOG_SHEET = '';
+// ID папки на Google Диску з фото книг (частина посилання після /folders/); порожньо — без фото.
+// Файл називається номером книги з колонки «№»: 15.jpg — обкладинка, 15-2.jpg, 15-3.jpg — ще фото
+const PHOTOS_FOLDER = '';
 // Аркуші в цій (прив'язаній) таблиці; створюються самі
 const ORDERS_SHEET = 'Замовлення';
 const ITEMS_SHEET = 'Позиції';
@@ -49,7 +52,71 @@ const STATUSES = [
 ];
 
 function doGet() {
-  return json_({ ok: true, books: readCatalog_().filter(b => b.stock > 0) });
+  const photos = photos_();
+  const books = readCatalog_()
+    .filter(b => b.stock > 0)
+    .map(b => Object.assign(b, { photos: photos[b.id.toLowerCase()] || [] }));
+  return json_({ ok: true, books });
+}
+
+// Номер книги → ID файлів фото по порядку (перше — обкладинка). Обхід папки повільний,
+// тому список кешується на 10 хвилин: нове фото з'являється на сайті не одразу
+function photos_() {
+  if (!PHOTOS_FOLDER) return {};
+  const cached = cacheGet_('photos');
+  if (cached) return JSON.parse(cached);
+
+  const found = {}; // номер книги → { порядковий номер фото → { file, date } }
+  try {
+    const files = DriveApp.getFolderById(PHOTOS_FOLDER).getFiles();
+    while (files.hasNext()) {
+      const f = files.next();
+      if (f.isTrashed() || !f.getMimeType().startsWith('image/')) continue;
+      const name = f.getName().replace(/\.[^.]*$/, '').trim().toLowerCase();
+      // 15 → книга 15, фото 1;  15-3 → книга 15, фото 3
+      const m = name.match(/^(.+?)\s*-\s*(\d+)$/);
+      const id = m ? m[1] : name;
+      const n = m ? Number(m[2]) : 1;
+      const date = f.getLastUpdated().getTime();
+      const book = found[id] = found[id] || {};
+      // кілька файлів з однаковою назвою — беремо найновіший
+      if (!book[n] || date > book[n].date) book[n] = { file: f.getId(), date };
+    }
+  } catch (err) {
+    // неправильний ID папки чи немає доступу — сайт працює без фото
+    console.error(err);
+    return {};
+  }
+
+  const map = {};
+  Object.keys(found).forEach(id => {
+    map[id] = Object.keys(found[id]).map(Number).sort((a, b) => a - b).map(n => found[id][n].file);
+  });
+  const json = JSON.stringify(map);
+  cachePut_('photos', json, 600);
+  return map;
+}
+
+// Кеш Apps Script приймає до 100 КБ на запис, тому довгий текст ділимо на шматки
+const CACHE_CHUNK = 90000;
+
+function cachePut_(key, text, seconds) {
+  const parts = {};
+  const count = Math.ceil(text.length / CACHE_CHUNK);
+  for (let i = 0; i < count; i++) parts[`${key}:${i}`] = text.slice(i * CACHE_CHUNK, (i + 1) * CACHE_CHUNK);
+  parts[key] = String(count);
+  try { CacheService.getScriptCache().putAll(parts, seconds); } catch (err) { console.error(err); }
+}
+
+function cacheGet_(key) {
+  const cache = CacheService.getScriptCache();
+  const count = Number(cache.get(key));
+  if (!count) return null;
+  const keys = Array.from({ length: count }, (_, i) => `${key}:${i}`);
+  const parts = cache.getAll(keys);
+  // якщо кеш викинув хоч один шматок — вважаємо, що кешу немає
+  if (keys.some(k => parts[k] == null)) return null;
+  return keys.map(k => parts[k]).join('');
 }
 
 function doPost(e) {
