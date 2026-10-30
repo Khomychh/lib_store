@@ -161,7 +161,9 @@ function readCatalog_() {
       pages: String(r[c.pages]).trim(),
       price: Number(r[c.price]) || 0,
       stock: Number(r[c.stock]) || 0,
-    }));
+    }))
+    // книга без ціни (порожньо, 0 або текст) не продається — інакше була б безкоштовною
+    .filter(b => b.price > 0);
 }
 
 // Дописує рядки в кінець аркуша; повертає номер першого доданого рядка
