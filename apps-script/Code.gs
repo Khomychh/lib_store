@@ -264,19 +264,27 @@ function readCatalog_() {
   const c = {
     id: col('№'), author: col('Автор'), title: col('Назва'), year: col('Рік'),
     pages: col('Сторінки'), price: col('Ціна'), stock: col('К-сть'),
+    // необов'язкова колонка; якщо її немає — книги без опису
+    description: col('Опис'),
   };
 
   return values.slice(1)
     .filter(r => String(r[c.title]).trim())
-    .map(r => ({
-      id: String(r[c.id]).trim(),
-      author: String(r[c.author]).trim(),
-      title: String(r[c.title]).trim(),
-      year: String(r[c.year]).trim(),
-      pages: String(r[c.pages]).trim(),
-      price: Number(r[c.price]) || 0,
-      stock: Number(r[c.stock]) || 0,
-    }))
+    .map(r => {
+      const book = {
+        id: String(r[c.id]).trim(),
+        author: String(r[c.author]).trim(),
+        title: String(r[c.title]).trim(),
+        year: String(r[c.year]).trim(),
+        pages: String(r[c.pages]).trim(),
+        price: Number(r[c.price]) || 0,
+        stock: Number(r[c.stock]) || 0,
+      };
+      // порожній опис не передаємо — каталог і так великий
+      const description = c.description < 0 ? '' : String(r[c.description]).trim();
+      if (description) book.description = description;
+      return book;
+    })
     // книга без ціни (порожньо, 0 або текст) не продається — інакше була б безкоштовною
     .filter(b => b.price > 0);
 }
