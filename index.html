@@ -518,11 +518,12 @@
     <div class="sort">
       <button type="button" class="sort-btn" id="sortBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Сортування">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
-        <span class="label" id="sortLabel">За назвою</span>
+        <span class="label" id="sortLabel">Нові надходження</span>
         <svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
       </button>
       <ul class="sort-menu" id="sortMenu" role="listbox" tabindex="-1" hidden>
-        <li role="option" data-value="title" aria-selected="true">За назвою</li>
+        <li role="option" data-value="newest" aria-selected="true">Нові надходження</li>
+        <li role="option" data-value="title">За назвою</li>
         <li role="option" data-value="author">За автором</li>
         <li role="option" data-value="price-asc">Спочатку дешевші</li>
         <li role="option" data-value="price-desc">Спочатку дорожчі</li>
@@ -656,7 +657,7 @@ let byId = new Map();
 let filtered = [];
 let shown = PAGE;
 let cart = loadCart();
-let sortBy = 'title';
+let sortBy = 'newest';
 
 function loadCart() {
   try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; }
@@ -729,6 +730,8 @@ function applyFilter(keepShown) {
   });
   const collator = new Intl.Collator('uk');
   const sorters = {
+    // більший № у таблиці — пізніше додана книга
+    'newest': (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
     'title': (a, b) => collator.compare(a.title, b.title),
     'author': (a, b) => collator.compare(a.author || '￿', b.author || '￿'),
     'price-asc': (a, b) => a.price - b.price,
