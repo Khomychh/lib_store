@@ -644,9 +644,6 @@
 // URL веб-застосунку Google Apps Script (див. README.md)
 const API_URL = 'https://script.google.com/macros/s/AKfycbzECOv83-3zeRQTkKGr7dDt73XYR64jI6Qv5gPQTOQrSvt9n8VFlsrIMkWJWAIaV6jO/exec';
 
-// Картка книги з фото й описом — поки в розробці, вмикається параметром ?details в адресі
-const DETAILS = new URLSearchParams(location.search).has('details');
-
 const PAGE = 48;
 const CART_KEY = 'lib_store_cart';
 const BOOKS_KEY = 'lib_store_books';
@@ -786,15 +783,12 @@ function bookRow(b) {
   const info = el('div', 'info');
   const sub = el('div', 'byline');
   if (b.author) sub.append(el('span', 'author', b.author));
-  const photos = DETAILS && b.photos?.length && b.photos.length + ' фото';
+  const photos = b.photos?.length && b.photos.length + ' фото';
   const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', photos].filter(Boolean).join(' · ');
   if (meta) sub.append((b.author ? ' · ' : '') + meta);
-  let title = el('div', 'title', b.title);
-  if (DETAILS) {
-    title = el('a', 'title', b.title);
-    title.href = '#book-' + encodeURIComponent(b.id);
-    title.onclick = e => { e.preventDefault(); openBook(b); };
-  }
+  const title = el('a', 'title', b.title);
+  title.href = '#book-' + encodeURIComponent(b.id);
+  title.onclick = e => { e.preventDefault(); openBook(b); };
   info.append(title, sub);
 
   const priceBox = el('div', 'pricebox');
@@ -994,7 +988,7 @@ $('bookImg').addEventListener('error', () => {
 // #book-15 в адресі відкриває картку одразу після завантаження каталогу
 let hashChecked = false;
 function openFromHash() {
-  if (!DETAILS || hashChecked) return;
+  if (hashChecked) return;
   hashChecked = true;
   const m = location.hash.match(/^#book-(.+)$/);
   const b = m && byId.get(decodeURIComponent(m[1]));
