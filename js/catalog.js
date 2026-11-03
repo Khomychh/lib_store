@@ -1,0 +1,285 @@
+// Каталог: налаштування, стан, завантаження книг, пошук і сортування, показ вітриною чи списком, обкладинки.
+// Скрипти підключаються в index.html по черзі й мають спільні змінні: catalog → filters → cart → book → order → app.
+
+// URL веб-застосунку Google Apps Script (див. docs/setup.md, крок 3)
+const API_URL = 'https://script.google.com/macros/s/AKfycbzECOv83-3zeRQTkKGr7dDt73XYR64jI6Qv5gPQTOQrSvt9n8VFlsrIMkWJWAIaV6jO/exec';
+
+const PAGE = 48;
+const CART_KEY = 'lib_store_cart';
+const BOOKS_KEY = 'lib_store_books';
+
+const $ = id => document.getElementById(id);
+const money = n => n.toLocaleString('uk-UA') + ' грн';
+
+let books = [];
+let byId = new Map();
+let filtered = [];
+let shown = PAGE;
+let cart = loadCart();
+let sortBy = 'newest';
+const VIEW_KEY = 'lib_store_view';
+let view = loadView();
+
+function loadView() {
+  try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
+}
+
+function loadCart() {
+  try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; }
+}
+function saveCart() {
+  try { localStorage.setItem(CART_KEY, JSON.stringify(cart)); } catch {}
+}
+
+function showState(text, isError) {
+  $('state').hidden = !text;
+  $('state').textContent = text;
+  $('state').classList.toggle('error', !!isError);
+}
+
+function renderSkeleton() {
+  const row = `<li class="row skeleton"><div class="cover"></div><div class="info">
+    <div class="line" style="width:60%;height:16px"></div><div class="line" style="width:30%"></div></div>
+    <div class="line" style="width:70px;height:16px;justify-self:end"></div><div></div></li>`;
+  $('list').innerHTML = row.repeat(10);
+}
+
+async function init() {
+  if (!API_URL) {
+    showState('Сайт ще не налаштовано: вкажіть API_URL в index.html.', true);
+    return;
+  }
+  // спочатку показуємо збережений каталог, поки Google віддає свіжий
+  const cached = loadCachedBooks();
+  if (cached) setBooks(cached, false);
+  // на опублікованому сайті перші книги вже вписані в HTML (scripts/build.mjs) — заглушки не потрібні
+  else if (!$('list').children.length) renderSkeleton();
+
+  try {
+    const res = await fetch(API_URL);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    const catalog = { books: data.books, categories: data.categories || [] };
+    try { localStorage.setItem(BOOKS_KEY, JSON.stringify(catalog)); } catch {}
+    setBooks(catalog, !!cached);
+  } catch (err) {
+    console.error(err);
+    if (cached) return;
+    // книги, вписані в HTML, лишаємо: їхні сторінки відкриваються й без каталогу
+    if ($('list').querySelector('.row:not(.skeleton)')) {
+      showState('Не вдалося завантажити весь каталог — показано лише нові надходження. Спробуйте оновити сторінку.', true);
+      return;
+    }
+    $('list').textContent = '';
+    showState('Не вдалося завантажити каталог. Спробуйте оновити сторінку.', true);
+  }
+}
+
+function loadCachedBooks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(BOOKS_KEY));
+    // раніше зберігався лише масив книг
+    if (Array.isArray(saved)) return { books: saved, categories: [] };
+    return saved?.books ? saved : null;
+  } catch { return null; }
+}
+
+function setBooks(catalog, keepShown) {
+  books = catalog.books;
+  byId = new Map(books.map(b => [b.id, b]));
+  buildCategories(catalog.categories);
+  readHashCategory();
+  // категорія з посилання чи з минулого показу могла спорожніти — тоді показуємо всі книги
+  const anyCategory = [...cats.values()].some(hasBooks);
+  if (!anyCategory || (cat === NONE ? !uncategorized : cat && !cats.get(cat)?.count)) cat = '';
+  // прибрати з кошика те, чого вже немає або менше в наявності
+  for (const id of Object.keys(cart)) {
+    const b = byId.get(id);
+    if (!b) delete cart[id];
+    else cart[id] = Math.min(cart[id], b.stock);
+  }
+  saveCart();
+  pruneFilters();
+  applyFilter(keepShown);
+  updateCartBar();
+  drawPageBook();
+  openFromHash();
+}
+
+const searchWords = () => $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+function matchesSearch(b, words) {
+  const hay = [b.title, b.author, b.publisher].filter(Boolean).join(' ').toLowerCase();
+  return words.every(w => hay.includes(w));
+}
+
+function applyFilter(keepShown) {
+  const words = searchWords();
+  filtered = books.filter(b => inCategory(b) && passFilters(b) && matchesSearch(b, words));
+  const collator = new Intl.Collator('uk');
+  const sorters = {
+    // більший № у таблиці — пізніше додана книга
+    'newest': (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
+    'title': (a, b) => collator.compare(a.title, b.title),
+    'author': (a, b) => collator.compare(a.author || '￿', b.author || '￿'),
+    'price-asc': (a, b) => a.price - b.price,
+    'price-desc': (a, b) => b.price - a.price,
+    'year-desc': (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0),
+  };
+  filtered.sort(sorters[sortBy]);
+  if (!keepShown) shown = PAGE;
+  render();
+  renderFilters();
+}
+
+function render() {
+  const list = $('list');
+  list.textContent = '';
+  const frag = document.createDocumentFragment();
+  for (const b of filtered.slice(0, shown)) frag.append(bookRow(b));
+  list.append(frag);
+
+  $('count').textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
+  showState(filtered.length ? '' : cat
+    ? 'У цій категорії нічого не знайдено. Спробуйте інший запит або виберіть «Усі книги».'
+    : 'Нічого не знайдено. Спробуйте інший запит.');
+  $('more').hidden = shown >= filtered.length;
+}
+
+// Дописує наступну порцію книг у кінець списку, не перемальовуючи вже показані
+function loadMore() {
+  if (shown >= filtered.length) return;
+  const frag = document.createDocumentFragment();
+  for (const b of filtered.slice(shown, shown + PAGE)) frag.append(bookRow(b));
+  shown += PAGE;
+  $('list').append(frag);
+  $('more').hidden = shown >= filtered.length;
+}
+
+function plural(n, one, few, many) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+// Розмітку картки для вітрини повторює збирач (staticRow у scripts/build.mjs) — міняєте тут, міняйте й там
+function bookRow(b) {
+  const li = el('li', 'row');
+  li.dataset.id = b.id;
+
+  const info = el('div', 'info');
+  const sub = el('div', 'byline');
+  if (b.author) sub.append(el('span', 'author', b.author));
+  // одне фото вже видно на мініатюрі; підпис лишаємо, лише коли є що гортати
+  const photos = b.photos?.length > 1 && b.photos.length + ' фото';
+  // стан уживаної книги: у списку — у підписі, на вітрині — позначкою на обкладинці
+  const cond = view === 'list' && isUsed(b) && 'стан: ' + b.condition.toLowerCase();
+  const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', cond, photos].filter(Boolean).join(' · ');
+  if (meta) sub.append((b.author ? ' · ' : '') + meta);
+  // позначка на обкладинці схована від читачів екрана разом з обкладинкою — дублюємо її для них
+  if (view === 'grid' && isUsed(b)) sub.append(el('span', 'sr-only', `, стан: ${b.condition}`));
+  const title = el('a', 'title', b.title);
+  // справжня адреса сторінки книги — за нею Google знаходить книги, а середня кнопка миші відкриває її окремо;
+  // звичайний клік відкриває картку тут же, без переходу
+  title.href = '/book/' + encodeURIComponent(b.id) + '/';
+  title.onclick = e => { e.preventDefault(); openBook(b); };
+  info.append(title, sub);
+
+  const priceBox = el('div', 'pricebox');
+  priceBox.append(...priceLines(b));
+
+  li.append(bookCover(b), info, priceBox, cartControl(b, li));
+  li.classList.toggle('in-cart', !!cart[b.id]);
+  return li;
+}
+
+// Знижка у відсотках; 0 — книга не акційна. Скрипт передає price — ціну продажу (акційну, якщо є)
+// і oldPrice — звичайну ціну, лише коли акційна справді менша
+const discount = b => b.oldPrice > b.price ? Math.round((1 - b.price / b.oldPrice) * 100) : 0;
+
+// Ціна, під акцію — перекреслена стара зі знижкою над нею, і наявність
+function priceLines(b) {
+  const off = discount(b);
+  const lines = [];
+  if (off) {
+    const was = el('div', 'was');
+    const old = el('s', null, money(b.oldPrice));
+    old.prepend(el('span', 'sr-only', 'Звичайна ціна: '));
+    was.append(old, el('span', 'off', `−${off}%`));
+    lines.push(was);
+  }
+  const price = el('div', off ? 'price sale' : 'price', money(b.price));
+  if (off) price.prepend(el('span', 'sr-only', 'Ціна зі знижкою: '));
+  lines.push(price, el('div', 'stock', `в наявності: ${b.stock}`));
+  return lines;
+}
+
+// Відтінки тканинних палітурок: [тканина, тиснення]. Книга завжди отримує той самий
+const CLOTHS = [
+  ['#2c2d30', '#d9d8d3'],
+  ['#45484d', '#e4e3de'],
+  ['#8a8c8f', '#f4f4f2'],
+  ['#e6e5e0', '#3a3b3e'],
+  ['#cfcdc6', '#2c2d30'],
+];
+const clothOf = id => CLOTHS[[...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % CLOTHS.length];
+
+// Рамка обкладинки 5:7, як у CSS. Фото, що відрізняється від неї не більше ніж на 12%
+// (від 2:3 до 3:4), заповнює рамку повністю — назва й автор на обкладинці при цьому вціліють
+const COVER_RATIO = 5 / 7;
+const FILL_TOLERANCE = 0.12;
+
+// Перше фото книги як обкладинка; немає фото або воно не відкрилося — тканинна палітурка
+function bookCover(b) {
+  const box = el('div', 'cover');
+  box.setAttribute('aria-hidden', 'true');
+  const badge = () => {
+    if (view !== 'grid') return;
+    if (isUsed(b)) box.append(el('span', 'cond', b.condition));
+    if (discount(b)) box.append(el('span', 'ribbon', `−${discount(b)}%`));
+  };
+  const blank = () => {
+    const [cloth, stamp] = clothOf(b.id);
+    box.className = 'cover blank';
+    box.style.setProperty('--cloth', cloth);
+    box.style.setProperty('--stamp', stamp);
+    box.replaceChildren(
+      el('span', 'cover-letter', (b.title || '').trim().charAt(0).toUpperCase()),
+      el('span', 'cover-title', b.title),
+      el('span', 'cover-author', b.author || ''),
+    );
+    badge();
+  };
+  const id = b.photos?.[0];
+  if (!id) { blank(); return box; }
+  // з запасом на екрани з високою щільністю: 48px у списку, до ~200px на вітрині
+  const src = photoUrl(id, view === 'grid' ? 480 : 150);
+  // книга будь-яких пропорцій видна цілою; поля навколо заповнює вона ж, розмита, як скло над фото
+  const layer = cls => {
+    const img = el('img', cls);
+    img.alt = '';
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.referrerPolicy = 'no-referrer';
+    img.src = src;
+    return img;
+  };
+  const front = layer('cover-img');
+  front.onerror = blank;
+  // розмитий фон лишаємо лише незвичним форматам: альбомним, квадратним, дуже вузьким
+  front.onload = () => {
+    const fit = front.naturalWidth / front.naturalHeight / COVER_RATIO;
+    box.classList.toggle('fill', Math.abs(fit - 1) <= FILL_TOLERANCE);
+  };
+  box.classList.add('photo');
+  box.append(layer('cover-bg'), front);
+  badge();
+  return box;
+}

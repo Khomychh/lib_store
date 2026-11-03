@@ -5,24 +5,30 @@
 //  - бере каталог з Apps Script і для кожної книги в наявності робить сторінку /book/<№>/ — лише з цією книгою
 //    (пошук і каталог ховаються, див. body[data-book] у стилях), власною назвою, описом, прев'ю для месенджерів
 //    і розміткою товару для Google;
-//  - на всі сторінки дописує адресу, прев'ю й розмітку магазину; робить sitemap.xml, robots.txt і 404.html.
+//  - на всі сторінки дописує адресу, прев'ю й розмітку магазину; робить sitemap.xml, robots.txt і 404.html;
+//  - робить products.xml — файл товарів для Google Merchant Center (лише книги з фото);
+//  - збирає текстові сторінки з папки pages/ (доставка й оплата, повернення, контакти) у /<назва файлу>/.
 //
 // Звідки бере дані (окремих налаштувань немає — міняйте там, де це й так видно):
 //  - домен сайту — файл CNAME;
 //  - назва магазину — <h1 class="brand"> в index.html;
 //  - назва вкладки й опис головної — <title> і <meta name="description"> в index.html;
-//  - адреса каталогу — const API_URL в index.html.
+//  - адреса каталогу — const API_URL в js/catalog.js.
+//
+// До styles.css і js/*.js у сторінках дописує версію (?v=…, за вмістом файлу): GitHub Pages дозволяє браузерам
+// тримати файли 10 хвилин, і без версії після оновлення хтось бачив би новий HTML зі старим JS.
 //
 // Локально: node scripts/build.mjs, потім, напр., python -m http.server -d _site
 
 import { readFileSync, writeFileSync, mkdirSync, cpSync, rmSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, '_site');
 // що не публікуємо: службове, бекенд, сам збирач (усе з крапкою на початку теж)
-const PRIVATE = new Set(['_site', 'scripts', 'apps-script', 'README.md', 'node_modules']);
+const PRIVATE = new Set(['_site', 'scripts', 'apps-script', 'pages', 'docs', 'README.md', 'node_modules']);
 
 const read = file => readFileSync(join(ROOT, file), 'utf8');
 const pick = (text, re, what) => {
@@ -31,20 +37,26 @@ const pick = (text, re, what) => {
   return m[1].trim();
 };
 
-const template = read('index.html');
+// версія кожного стилю й скрипта — перші символи хешу вмісту: змінився файл — змінилась адреса
+const versioned = html => html.replace(/(href|src)="((?:styles\.css)|(?:js\/[\w-]+\.js))"/g, (all, attr, file) =>
+  `${attr}="${file}?v=${createHash('sha256').update(readFileSync(join(ROOT, file))).digest('hex').slice(0, 10)}"`);
+
+const template = versioned(read('index.html'));
 const SITE = 'https://' + read('CNAME').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
 // лише справжній тег на початку рядка, а не згадки в коментарях
 const BRAND = /^(\s*)<h1 class="brand">(.*?)<\/h1>/m;
 const NAME = pick(template, /^\s*<h1 class="brand">(.*?)<\/h1>/m, '<h1 class="brand"> з назвою магазину в index.html');
 const HOME_TITLE = pick(template, /<title>([\s\S]*?)<\/title>/, '<title> в index.html');
 const DESCRIPTION = pick(template, /<meta name="description" content="([^"]*)">/, 'meta description в index.html');
-const API_URL = pick(template, /const API_URL = '([^']+)'/, 'API_URL в index.html');
+const API_URL = pick(read('js/catalog.js'), /const API_URL = '([^']+)'/, 'API_URL в js/catalog.js');
 
 // ---------- дрібниці ----------
 const esc = s => String(s ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const money = n => n.toLocaleString('uk-UA') + ' грн';
-const photoUrl = (id, width) => `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w${width}`;
+// Фото з Google Диску — пряма адреса, куди Диск переадресовує свої мініатюри. Саму drive.google.com/thumbnail
+// роботам Google заборонено читати (robots.txt Диску), тож для пошуку, прев'ю й Merchant Center — лише ця
+const photoUrl = (id, width) => `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=w${width}`;
 const isUsed = b => !!b.condition && !/^нов/i.test(b.condition);
 const discount = b => b.oldPrice > b.price ? Math.round((1 - b.price / b.oldPrice) * 100) : 0;
 const paragraphs = text => String(text || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
@@ -97,8 +109,8 @@ function seo({ url, title, description, image, imageAlt, data, noindex }) {
 }
 
 // Сторінка з шаблону index.html: свої назва, опис, шапка для пошуковиків і (для книги) сама книга
-function page({ title, description, head, book, bodyData }) {
-  let html = template
+function page({ html: base = template, title, description, head, book, bodyData }) {
+  let html = base
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
     .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${esc(description)}">`)
     .replace(/<!-- seo:[\s\S]*?-->/, head);
@@ -130,7 +142,7 @@ function bookArticle(b) {
   const photo = b.photos?.[0];
   const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.'].filter(Boolean).join(' · ');
   const by = (b.author ? `<span class="author">${esc(b.author)}</span>` : '') + (b.author && meta ? ' · ' : '') + esc(meta);
-  const facts = [['Видавництво', b.publisher], ['Мова', b.language], ['Обкладинка', b.binding], ['Стан', b.condition]]
+  const facts = [['Видавництво', b.publisher], ['Мова', b.language], ['Обкладинка', b.binding], ['Стан', b.condition], ['ISBN', b.isbn]]
     .filter(([, v]) => v)
     .map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
   const desc = paragraphs(b.description).map(p => `<p>${esc(p)}</p>`).join('');
@@ -159,6 +171,21 @@ function bookDescription(b) {
   return clip(parts.filter(Boolean).join(' '));
 }
 
+// ISBN → 13 цифр (так Google чекає GTIN книги) або null, якщо номер з помилкою.
+// ISBN-10 перераховуємо в 13: «978» + перші 9 цифр + нова контрольна
+function isbn13(raw) {
+  const s = String(raw || '').toUpperCase().replace(/[^\dX]/g, '');
+  const check13 = d => (10 - [...d].reduce((sum, c, i) => sum + Number(c) * (i % 2 ? 3 : 1), 0) % 10) % 10;
+  if (/^\d{13}$/.test(s)) return check13(s.slice(0, 12)) === Number(s[12]) ? s : null;
+  if (/^\d{9}[\dX]$/.test(s)) {
+    const sum = [...s].reduce((acc, c, i) => acc + (c === 'X' ? 10 : Number(c)) * (10 - i), 0);
+    if (sum % 11) return null;
+    const d = '978' + s.slice(0, 9);
+    return d + check13(d);
+  }
+  return null;
+}
+
 // Розмітка товару для Google: книга з ціною, наявністю і станом
 function bookData(b) {
   const formats = { 'тверда': 'https://schema.org/Hardcover', 'м’яка': 'https://schema.org/Paperback', "м'яка": 'https://schema.org/Paperback' };
@@ -168,6 +195,8 @@ function bookData(b) {
     name: b.title,
     url: bookUrl(b),
     sku: b.id,
+    isbn: b.gtin || undefined,
+    gtin13: b.gtin || undefined,
     description: paragraphs(b.description).join(' ') || undefined,
     image: b.photos?.length ? b.photos.map(id => photoUrl(id, 1200)) : undefined,
     author: b.author ? { '@type': 'Person', name: b.author } : undefined,
@@ -204,6 +233,10 @@ const books = catalog.books.filter(b => {
     return false;
   }
   seen.add(b.id);
+  if (b.isbn) {
+    b.gtin = isbn13(b.isbn);
+    if (!b.gtin) console.warn(`::warning::ISBN «${b.isbn}» у книги №${b.id} («${b.title}») з помилкою — перевірте цифри`);
+  }
   return true;
 });
 
@@ -226,11 +259,89 @@ const store = {
   currenciesAccepted: 'UAH',
 };
 
+// ---------- перші книги каталогу прямо в HTML головної ----------
+// Google бачить книги й посилання на їхні сторінки без JavaScript, а покупець — книги замість заглушок,
+// поки скрипт вантажить каталог; тоді скрипт малює список наново (js/catalog.js, init).
+// Розмітка — та сама, що в bookRow/bookCover (js/catalog.js) для вітрини: міняєте там — міняйте й тут
+const CLOTHS = [['#2c2d30', '#d9d8d3'], ['#45484d', '#e4e3de'], ['#8a8c8f', '#f4f4f2'], ['#e6e5e0', '#3a3b3e'], ['#cfcdc6', '#2c2d30']];
+const clothOf = id => CLOTHS[[...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % CLOTHS.length];
+const plural = (n, one, few, many) => {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+  return many;
+};
+function staticRow(b) {
+  const off = discount(b);
+  const badges = (isUsed(b) ? `<span class="cond">${esc(b.condition)}</span>` : '') +
+    (off ? `<span class="ribbon">−${off}%</span>` : '');
+  const photo = b.photos?.[0];
+  let cover;
+  if (photo) {
+    const img = cls => `<img class="${cls}" src="${photoUrl(photo, 480)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
+    cover = `<div class="cover photo fill" aria-hidden="true">${img('cover-bg')}${img('cover-img')}${badges}</div>`;
+  } else {
+    const [cloth, stamp] = clothOf(b.id);
+    cover = `<div class="cover blank" aria-hidden="true" style="--cloth: ${cloth}; --stamp: ${stamp};">` +
+      `<span class="cover-letter">${esc((b.title || '').trim().charAt(0).toUpperCase())}</span>` +
+      `<span class="cover-title">${esc(b.title)}</span><span class="cover-author">${esc(b.author || '')}</span>${badges}</div>`;
+  }
+  const photos = b.photos?.length > 1 && b.photos.length + ' фото';
+  const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', photos].filter(Boolean).join(' · ');
+  const by = (b.author ? `<span class="author">${esc(b.author)}</span>` : '') + (meta ? (b.author ? ' · ' : '') + esc(meta) : '') +
+    (isUsed(b) ? `<span class="sr-only">, стан: ${esc(b.condition)}</span>` : '');
+  return `<li class="row" data-id="${esc(b.id)}">${cover}` +
+    `<div class="info"><a class="title" href="/book/${encodeURIComponent(b.id)}/">${esc(b.title)}</a><div class="byline">${by}</div></div>` +
+    `<div class="pricebox">${priceLines(b)}</div><div class="ctrl"></div></li>`;
+}
+// «Нові надходження» — як у скрипта: більший № — новіша книга. Беремо весь каталог, а не лише книги зі сторінками
+const PAGE = 48;
+const first = [...catalog.books].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0)).slice(0, PAGE);
+const total = catalog.books.length;
+const home = template
+  .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${first.map(staticRow).join('\n')}\n  </ul>`)
+  .replace('<div class="count" id="count">&nbsp;</div>', `<div class="count" id="count">${total} ${plural(total, 'книга', 'книги', 'книг')}</div>`);
+if (home === template) throw new Error('Не знайшов у index.html місце для каталогу (<ul class="list" id="list"></ul>)');
+
 writeFileSync(join(OUT, 'index.html'), page({
+  html: home,
   title: HOME_TITLE,
   description: DESCRIPTION,
   head: seo({ url: SITE + '/', title: NAME, description: DESCRIPTION, data: store }),
 }));
+
+// ---------- текстові сторінки з папки pages/ (доставка, повернення, контакти) ----------
+// Файл pages/<адреса>.html — шматок HTML: назва сторінки з <h1>, опис для Google — з першого абзацу.
+// <mark class="todo"> — ще не заповнене: сторінка все одно збирається, але з попередженням
+const BACK = '<a class="back glass" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Усі книги</a>';
+const plain = html => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+const textPages = readdirSync(join(ROOT, 'pages')).filter(f => f.endsWith('.html')).map(file => {
+  const slug = file.replace(/\.html$/, '');
+  const body = read(join('pages', file)).replace(/<!--[\s\S]*?-->/g, '').trim();
+  const h1 = plain(pick(body, /<h1>([\s\S]*?)<\/h1>/, `<h1> у pages/${file}`));
+  const first = body.match(/<p>([\s\S]*?)<\/p>/);
+  const todo = (body.match(/class="todo"/g) || []).length;
+  if (todo) console.warn(`::warning::pages/${file}: не заповнено місць — ${todo} (позначки <mark class="todo">)`);
+  return { slug, file, h1, body, description: clip(first ? plain(first[1]) : h1), todo };
+});
+for (const p of textPages) {
+  const url = `${SITE}/${p.slug}/`;
+  let html = page({
+    title: `${p.h1} | ${NAME}`,
+    description: p.description,
+    head: seo({
+      url, title: p.h1, description: p.description,
+      data: { '@context': 'https://schema.org', '@type': 'WebPage', name: p.h1, url, isPartOf: { '@type': 'WebSite', name: NAME, url: SITE + '/' } },
+    }),
+    book: `${BACK}\n  <article class="text-page glass">\n${p.body}\n  </article>`,
+    bodyData: 'data-page',
+  });
+  // у підвалі позначаємо, на якій сторінці ми зараз
+  html = html.replace(`<a href="/${p.slug}/">`, `<a href="/${p.slug}/" aria-current="page">`);
+  mkdirSync(join(OUT, p.slug), { recursive: true });
+  writeFileSync(join(OUT, p.slug, 'index.html'), html);
+}
 
 // неіснуюча адреса (напр., сторінка проданої книги) — показуємо каталог, але просимо Google її не індексувати
 writeFileSync(join(OUT, '404.html'), page({
@@ -256,7 +367,7 @@ for (const b of books) {
       data: bookData(b),
     }),
     book: bookArticle(b),
-    bodyData: `data-book="${esc(b.id)}"`,
+    bodyData: `data-page data-book="${esc(b.id)}"`,
   }));
 }
 
@@ -264,11 +375,68 @@ writeFileSync(join(OUT, 'sitemap.xml'), [
   '<?xml version="1.0" encoding="UTF-8"?>',
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
   `  <url><loc>${SITE}/</loc></url>`,
+  ...textPages.map(p => `  <url><loc>${SITE}/${p.slug}/</loc></url>`),
   ...books.map(b => `  <url><loc>${esc(bookUrl(b))}</loc></url>`),
   '</urlset>',
   '',
 ].join('\n'));
 
+// ---------- файл товарів для Google Merchant Center ----------
+// Формат — RSS 2.0 з полями Google (https://support.google.com/merchants/answer/7052112).
+// Лише книги з фото: без фото Google товар не покаже. Решта додасться сама, коли з'являться фото
+const categoryPath = (() => {
+  const parent = new Map((catalog.categories || []).map(c => [c.name, c.parent || '']));
+  return name => {
+    const path = [];
+    for (let n = name; n && !path.includes(n); n = parent.get(n)) path.unshift(n);
+    return path.join(' > ');
+  };
+})();
+const gPrice = n => `${n.toFixed(2)} UAH`;
+// опис товару: без ціни й «доставки» — Google не приймає рекламних фраз в описі
+const sentence = s => /[.!?…]$/.test(s) ? s : s + '.'; // «Бинцаровский Д.» — без другої крапки
+const productText = b => paragraphs(b.description).join(' ') || [
+  `«${b.title}»` + (b.author ? ` — ${b.author}` : ''),
+  [b.publisher, b.year && b.year + ' р.', b.pages && b.pages + ' с.'].filter(Boolean).join(', '),
+  b.language && `Мова: ${b.language.toLowerCase()}`,
+  b.binding && `Обкладинка: ${b.binding.toLowerCase()}`,
+  b.condition && `Стан: ${b.condition.toLowerCase()}`,
+].filter(Boolean).map(sentence).join(' ');
+const products = books.filter(b => b.photos?.length).map(b => {
+  const f = [
+    ['g:id', b.id],
+    // Google радить у назві книги — назву й автора
+    ['g:title', (b.title + (b.author ? ' — ' + b.author : '')).slice(0, 150)],
+    ['g:description', productText(b).slice(0, 5000)],
+    ['g:link', bookUrl(b)],
+    ['g:image_link', photoUrl(b.photos[0], 1200)],
+    ...b.photos.slice(1, 11).map(id => ['g:additional_image_link', photoUrl(id, 1200)]),
+    ['g:availability', 'in_stock'],
+    // під акцію: звичайна ціна — price, акційна — sale_price
+    ['g:price', gPrice(b.oldPrice > b.price ? b.oldPrice : b.price)],
+    b.oldPrice > b.price && ['g:sale_price', gPrice(b.price)],
+    ['g:condition', isUsed(b) ? 'used' : 'new'],
+    b.gtin ? ['g:gtin', b.gtin] : ['g:identifier_exists', 'no'],
+    b.publisher && ['g:brand', b.publisher.slice(0, 70)],
+    ['g:google_product_category', '784'], // Media > Books
+    b.category && ['g:product_type', categoryPath(b.category)],
+  ].filter(Boolean);
+  return '    <item>\n' + f.map(([k, v]) => `      <${k}>${esc(v)}</${k}>`).join('\n') + '\n    </item>';
+});
+writeFileSync(join(OUT, 'products.xml'), [
+  '<?xml version="1.0" encoding="UTF-8"?>',
+  '<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">',
+  '  <channel>',
+  `    <title>${esc(NAME)}</title>`,
+  `    <link>${SITE}/</link>`,
+  `    <description>${esc(DESCRIPTION)}</description>`,
+  ...products,
+  '  </channel>',
+  '</rss>',
+  '',
+].join('\n'));
+
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
 
-console.log(`Готово: ${SITE} — головна і ${books.length} сторінок книг у _site/`);
+console.log(`Готово: ${SITE} — головна і ${books.length} сторінок книг у _site/; ` +
+  `у файлі товарів для Google ${products.length} (решті бракує фото)`);

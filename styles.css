@@ -1,0 +1,779 @@
+/* Матове скло поверх чорно-білого фото сторінок: графіт і папір */
+:root {
+  color-scheme: light;
+  --ink: #1c1d1f;
+  --muted: #55585d;
+  --line: rgba(28, 29, 31, .12);
+  --accent: #2a2b2e;
+  --accent-hover: #000000;
+  --accent-ink: #ffffff;
+  --accent-soft: rgba(28, 29, 31, .08);
+  --danger: #a3271f;
+  --ok: #2a2b2e;
+  --glass: rgba(246, 246, 244, .66);
+  --glass-strong: rgba(248, 248, 246, .9);
+  --menu: #f3f3f1;
+  --glass-field: rgba(255, 255, 255, .62);
+  --glass-edge: rgba(255, 255, 255, .8);
+  --glass-blur: blur(20px) saturate(1.2);
+  --photo-filter: brightness(.92) contrast(.95);
+  --shadow: 0 1px 0 var(--glass-edge) inset, 0 10px 30px rgba(0, 0, 0, .28);
+  --shadow-lg: 0 1px 0 var(--glass-edge) inset, 0 18px 50px rgba(0, 0, 0, .4);
+  --bar-bg: rgba(20, 21, 23, .72);
+  --bar-ink: #f4f4f2;
+  --backdrop: rgba(10, 10, 12, .3);
+  --radius: 18px;
+  --stage: rgba(28, 29, 31, .06);
+  --spine: rgba(0, 0, 0, .07);
+  --spine-deep: rgba(0, 0, 0, .18);
+  --row-hover: rgba(255, 255, 255, .5);
+  /* єдиний колір на чорно-білому сайті — лише для акцій, щоб їх було видно здалеку */
+  --sale: #b3202a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --ink: #f2f2f0;
+    --muted: #a9abaf;
+    --line: rgba(255, 255, 255, .1);
+    --accent: #efefec;
+    --accent-hover: #ffffff;
+    --accent-ink: #151618;
+    --accent-soft: rgba(255, 255, 255, .1);
+    --danger: #f2938a;
+    --ok: #efefec;
+    --glass: rgba(20, 21, 23, .62);
+    --glass-strong: rgba(24, 25, 27, .9);
+    --menu: #1e1f22;
+    --glass-field: rgba(255, 255, 255, .06);
+    --glass-edge: rgba(255, 255, 255, .12);
+    --photo-filter: brightness(.42) contrast(1.05);
+    --shadow: 0 1px 0 var(--glass-edge) inset, 0 10px 30px rgba(0, 0, 0, .5);
+    --shadow-lg: 0 1px 0 var(--glass-edge) inset, 0 18px 50px rgba(0, 0, 0, .65);
+    --bar-bg: rgba(8, 8, 10, .72);
+    --backdrop: rgba(0, 0, 0, .45);
+    --stage: rgba(0, 0, 0, .28);
+    --spine: rgba(0, 0, 0, .2);
+    --spine-deep: rgba(0, 0, 0, .45);
+    --row-hover: rgba(255, 255, 255, .06);
+    --sale: #f2827f;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+body {
+  margin: 0;
+  background: #2b2b2b;
+  color: var(--ink);
+  font: 15px/1.5 Onest, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding-bottom: 110px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+button { font: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Фото за склом: нерухоме, сторінка пливе над ним */
+.photo {
+  position: fixed; inset: 0; z-index: -1;
+  background:
+    radial-gradient(ellipse 110% 90% at 50% 35%, transparent 45%, rgba(0, 0, 0, .45)),
+    url(pages.jpg) center / cover no-repeat;
+  filter: var(--photo-filter);
+}
+@media (max-width: 700px) {
+  .photo { background-image: radial-gradient(ellipse 110% 90% at 50% 35%, transparent 45%, rgba(0, 0, 0, .45)), url(pages-960.jpg); }
+}
+
+/* Скло */
+.glass, .list, .toolbar, .count, .state {
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root { --glass: var(--glass-strong); }
+}
+
+/* Шапка: скляна табличка */
+header { padding: 56px 16px 32px; }
+.plaque {
+  max-width: 620px; margin: 0 auto;
+  padding: 30px 36px 28px;
+  text-align: center;
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+}
+.brand {
+  display: block; color: inherit; text-decoration: none;
+  font: 600 clamp(30px, 5vw, 46px)/1.08 Literata, Georgia, serif;
+  font-optical-sizing: auto;
+  letter-spacing: -.015em;
+  margin: 0 0 12px;
+  text-wrap: balance;
+}
+.sub { color: var(--muted); margin: 0 auto; max-width: 460px; text-wrap: pretty; }
+@media (max-width: 600px) {
+  header { padding: 28px 12px 20px; }
+  .plaque { padding: 22px 20px; border-radius: 20px; }
+}
+
+/* Пошук: скляна капсула завширшки зі список */
+.toolbar {
+  position: sticky; top: 10px; z-index: 5;
+  width: min(1088px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 7px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.toolbar .wrap { display: flex; gap: 8px; max-width: none; padding: 0; }
+.search { position: relative; flex: 1; min-width: 0; }
+.search svg { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.toolbar input, .sort-btn {
+  font: inherit; color: inherit;
+  background: var(--glass-field);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 11px 16px;
+  outline: none;
+  transition: border-color .15s, background .15s;
+}
+.toolbar input { width: 100%; padding-left: 44px; }
+.toolbar input::placeholder { color: var(--muted); }
+.toolbar input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* Сортування */
+.sort { position: relative; flex: none; }
+.sort-btn {
+  height: 100%;
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; white-space: nowrap;
+}
+.sort-btn:hover, .sort-btn[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.sort-btn svg { flex: none; color: var(--muted); }
+.sort-btn .chev { transition: transform .2s; }
+.sort-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.sort-menu, .filter-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
+  min-width: 230px;
+  list-style: none; margin: 0; padding: 6px;
+  /* всередині скляної смуги розмиття не працює, тому меню суцільне */
+  background: var(--menu);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  transform-origin: top right;
+  animation: pop .14s ease-out;
+}
+.sort-menu:focus { outline: none; }
+
+/* Фільтри: категорія (одна, деревом), стан і обкладинка (у кожній групі можна відмітити кілька) */
+.filter { position: relative; flex: none; }
+.filter-btn .badge {
+  min-width: 19px; height: 19px; padding: 0 5px;
+  display: grid; place-items: center;
+  border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+  font-size: 11.5px; font-weight: 600;
+}
+.filter-menu {
+  min-width: 250px; max-width: min(340px, calc(100vw - 32px)); padding: 8px 6px;
+  /* дерево категорій може бути довгим — меню гортається саме, сторінка під ним стоїть */
+  max-height: min(70vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.filter-menu input[type="radio"] { width: 16px; height: 16px; }
+.filter-menu fieldset { border: 0; margin: 0; padding: 0; }
+.filter-menu fieldset + fieldset { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.filter-menu legend { padding: 6px 12px 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.filter-menu .check { padding: 8px 12px; border-radius: 10px; }
+.filter-menu .check:hover { background: var(--accent-soft); }
+.filter-menu .check .n { margin-left: auto; padding-left: 16px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.filter-menu .check.empty { opacity: .45; }
+
+/* під пошуком: скільки книг знайдено і які фільтри ввімкнені — кожен знімається кліком */
+.summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 12px; }
+.picked {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px 4px 12px;
+  border: 0; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink);
+  font-size: 13px; font-weight: 500; cursor: pointer;
+}
+.picked span { font-size: 16px; line-height: 1; opacity: .7; }
+.picked:hover span { opacity: 1; }
+@keyframes pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } }
+.sort-menu li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sort-menu li:hover, .sort-menu li.active { background: var(--accent-soft); }
+.sort-menu li[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+.sort-menu .tick { width: 16px; flex: none; visibility: hidden; }
+.sort-menu li[aria-selected="true"] .tick { visibility: visible; }
+
+.count {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--muted); font-size: 13px; font-weight: 500;
+}
+
+/* Список книг: одна скляна полиця */
+.list {
+  list-style: none; margin: 0; padding: 0;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.row {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 120px 128px;
+  gap: 6px 18px;
+  align-items: center;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+  transition: background .15s;
+}
+.row:last-child { border-bottom: 0; }
+@media (hover: hover) {
+  .row:hover { background: var(--row-hover); }
+}
+.row.in-cart { background: color-mix(in srgb, var(--accent) 16%, transparent); box-shadow: inset 3px 0 0 var(--accent); }
+
+.title { font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.row .title { font: 600 16.5px/1.35 Literata, Georgia, serif; }
+.byline { color: var(--muted); font-size: 13px; margin-top: 3px; }
+.byline .author { color: var(--accent); font-weight: 500; }
+.meta { color: var(--muted); font-size: 13px; }
+.pricebox { text-align: right; }
+.price { font: 600 17px/1 Literata, Georgia, serif; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
+.stock { color: var(--muted); font-size: 12px; margin-top: 5px; white-space: nowrap; }
+.ctrl { justify-self: end; }
+
+/* Мініатюра в рядку: маленька книжка на полиці — корінець ліворуч, як у розгорнутій картці */
+.cover {
+  position: relative;
+  width: 48px; height: 67px; /* 5:7 — пропорції звичайної книги */
+  border-radius: 2px 4px 4px 2px;
+  overflow: hidden;
+  background: var(--stage);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 6px 14px -4px rgba(0, 0, 0, .3);
+}
+.cover img { display: block; width: 100%; height: 100%; }
+.cover .cover-bg {
+  position: absolute; inset: -15%; width: 130%; height: 130%;
+  object-fit: cover;
+  filter: blur(6px) brightness(.75) saturate(1.15);
+}
+.cover .cover-img {
+  position: relative;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .4));
+}
+/* звичайного формату книга заповнює рамку сама, без фону: зрізаються лише кілька відсотків з країв */
+.cover.fill .cover-img { object-fit: cover; filter: none; }
+.cover.fill .cover-bg { display: none; }
+/* на фото справжня палітурка — намальований корінець їй не потрібен */
+.cover.photo::after { background: none; }
+.grid .cover .cover-bg { filter: blur(16px) brightness(.72) saturate(1.15); }
+.grid .cover .cover-img { filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .45)); }
+.cover::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .28), rgba(255, 255, 255, .14) 7%, transparent 14%);
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
+}
+/* без фото — тканинна палітурка: у списку перша літера, на вітрині назва й автор у тисненій рамці */
+.cover.blank {
+  display: grid; place-items: center;
+  background: var(--cloth, #45484d);
+  color: var(--stamp, #e4e3de);
+  font: 600 22px/1 Literata, Georgia, serif;
+  container-type: inline-size;
+}
+.cover-title, .cover-author { display: none; }
+/* стан уживаної книги — позначка в куті обкладинки на вітрині */
+.cond {
+  position: absolute; top: 8px; left: 10px; z-index: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(20, 21, 23, .78); color: #f4f4f2;
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  font: 600 11px/1.3 Onest, system-ui, sans-serif;
+}
+/* Акція: шовкова закладка-ляссе, що звисає з верхнього краю книги, зі знижкою на ній */
+.ribbon {
+  position: absolute; top: 0; right: 12%; z-index: 1;
+  width: max(34px, 22%);
+  padding: 10px 0 max(26px, 17cqi);
+  background: linear-gradient(90deg, #8a1520, #b8232e 40%, #c92f3a 55%, #9c1a24);
+  color: #fff;
+  font: 700 max(11px, 7cqi)/1 Onest, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+  text-align: center;
+  /* хвостик з вирізом, як у справжньої стрічки */
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 8px), 0 100%);
+  /* стрічка виходить з-під обрізу книги: зверху її трохи затіняє палітурка */
+  box-shadow: inset 0 3px 2px -1px rgba(0, 0, 0, .35);
+}
+.grid .cover { container-type: inline-size; }
+/* закладка займає верх обкладинки — назва на тканинній палітурці опускається під неї */
+.grid .cover.blank:has(.ribbon) { padding-top: 48%; }
+
+.price.sale { color: var(--sale); }
+.was {
+  display: flex; justify-content: flex-end; align-items: baseline; gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12.5px; color: var(--muted); white-space: nowrap;
+}
+.was s { text-decoration-thickness: 1px; }
+.was .off { color: var(--sale); font-weight: 600; font-variant-numeric: tabular-nums; }
+/* на вітрині знижку вже видно на закладці */
+.grid .was { justify-content: flex-start; }
+.grid .was .off { display: none; }
+.buy .was { justify-content: flex-start; font-size: 13.5px; }
+
+.skeleton .cover { box-shadow: none; background: var(--line); }
+.skeleton .cover::after { display: none; }
+
+/* Вітрина: книги стоять обкладинкою до покупця на тій самій скляній полиці */
+.list.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  gap: 8px;
+  padding: 14px;
+}
+.grid .row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr auto;
+  align-items: start;
+  gap: 0 8px;
+  padding: 10px 10px 12px;
+  border-bottom: 0;
+  border-radius: 14px;
+}
+.grid .row.in-cart { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.grid .row .cover {
+  grid-column: 1 / -1; grid-row: auto; align-self: auto;
+  width: 100%; height: auto; aspect-ratio: 5 / 7;
+  margin-bottom: 12px;
+  border-radius: 3px 6px 6px 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 14px 26px -10px rgba(0, 0, 0, .45);
+}
+.grid .row .info { grid-column: 1 / -1; margin-bottom: 10px; }
+.grid .row .title { font-size: 15px; }
+.grid .byline { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid .pricebox { display: block; text-align: left; align-self: end; }
+.grid .ctrl { align-self: end; }
+
+.grid .cover.blank {
+  display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+  padding: 20% 13% 12%;
+  text-align: center;
+}
+.grid .cover.blank::before {
+  content: ""; position: absolute; inset: 7px 7px 7px 10px;
+  border: 1px solid currentColor; border-radius: 2px;
+  opacity: .3;
+}
+.grid .cover-letter { display: none; }
+/* з позначкою стану назва опускається, щоб не впиратися в неї */
+.grid .cover.blank:has(.cond) { padding-top: 32%; }
+.grid .cover-title {
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
+  font: 600 max(13px, 10cqi)/1.2 Literata, Georgia, serif;
+  text-wrap: balance; overflow-wrap: break-word;
+}
+.grid .cover-author {
+  display: block;
+  font: 500 max(10.5px, 6.4cqi)/1.3 Onest, system-ui, sans-serif;
+  opacity: .78;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+
+@media (max-width: 600px) {
+  .row { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 6px 14px; padding: 12px 16px; }
+  .row .cover { grid-row: span 2; align-self: start; }
+  .row .info { grid-column: 2 / -1; }
+  /* що не влазить у рядок до кнопки кошика (зазвичай наявність), переходить на наступний */
+  .pricebox { text-align: left; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+  /* у рядку: ціна, стара ціна зі знижкою, наявність */
+  .pricebox .was { order: 1; margin: 0; }
+  .pricebox .stock { order: 2; }
+  .grid .pricebox .was { margin-bottom: 4px; }
+  .row .title { font-size: 15.5px; }
+  /* iPhone збільшує сторінку при фокусі на полі з текстом, меншим за 16px */
+  input, textarea { font-size: 16px !important; }
+  /* на телефоні кнопки панелі — лише значки, щоб полю пошуку лишилось місце */
+  .sort-btn { padding: 11px 14px; }
+  .sort-btn .label, .sort-btn .chev { display: none; }
+  /* меню відкриваються на всю ширину панелі, а не від своєї кнопки — інакше вилазять за край екрана */
+  .sort, .filter { position: static; }
+  .sort-menu, .filter-menu { left: 0; right: 0; min-width: 0; max-width: none; }
+  .list.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 8px; }
+}
+/* кругла, на всю висоту панелі, як сусідні кнопки (ті розтягуються своїми обгортками) */
+.view-btn { flex: none; width: 46px; height: auto; align-self: stretch; justify-content: center; padding: 0; }
+
+.add {
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); cursor: pointer;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent);
+  font-size: 22px; line-height: 1;
+  transition: background .15s, color .15s;
+  flex: none;
+}
+.add:hover { background: var(--accent); color: var(--accent-ink); }
+
+.qty { display: inline-flex; align-items: center; background: var(--accent); border-radius: 999px; color: var(--accent-ink); flex: none; }
+.qty button {
+  width: 34px; height: 40px; border: 0; background: none; color: inherit;
+  font-size: 18px; cursor: pointer;
+}
+.qty button:disabled { opacity: .35; cursor: default; }
+.qty input {
+  width: 26px; border: 0; background: none; color: inherit; text-align: center; padding: 0;
+  font: inherit; font-weight: 600; -moz-appearance: textfield; outline: none;
+}
+.qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+/* Скелетон */
+.skeleton .line { background: var(--line); }
+.skeleton .line { height: 12px; border-radius: 6px; margin: 4px 0; }
+.skeleton { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .5; } }
+
+.state { text-align: center; color: var(--muted); padding: 40px 16px; border-radius: var(--radius); margin-top: 12px; }
+.state.error { color: var(--danger); }
+.more { height: 1px; }
+
+.btn {
+  font-weight: 600; cursor: pointer;
+  border: 0; border-radius: 999px;
+  padding: 12px 22px;
+  background: var(--accent); color: var(--accent-ink);
+  transition: background .15s;
+}
+.btn:hover:not(:disabled) { background: var(--accent-hover); }
+.btn:disabled { opacity: .55; cursor: default; }
+
+/* Кошик: димчасте скло */
+.cartbar {
+  position: fixed; left: 50%; bottom: 20px; z-index: 10;
+  width: min(560px, calc(100% - 32px));
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 10px 10px 20px;
+  background: var(--bar-bg); color: var(--bar-ink);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 999px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, .12) inset, 0 18px 50px rgba(0, 0, 0, .4);
+  transform: translate(-50%, 160%);
+  transition: transform .25s cubic-bezier(.2, .8, .2, 1);
+}
+.cartbar.show { transform: translate(-50%, 0); }
+.cartbar .info { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.cartbar .pill { background: rgba(255, 255, 255, .16); color: var(--bar-ink); border-radius: 999px; min-width: 28px; height: 28px; display: grid; place-items: center; font-weight: 600; font-size: 13px; padding: 0 8px; }
+.cartbar b { font: 600 17px Literata, Georgia, serif; white-space: nowrap; }
+.cartbar .btn { white-space: nowrap; background: #f4f4f2; color: #1c1d1f; }
+.cartbar .btn:hover { background: #ffffff; }
+
+dialog {
+  width: min(560px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  border: 1px solid var(--glass-edge); border-radius: 24px; padding: 0;
+  background: var(--glass-strong); color: var(--ink);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-lg);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
+  overscroll-behavior: contain;
+}
+dialog[open] { animation: rise .2s ease; }
+/* поки відкрите вікно, сторінка під ним не гортається (інакше на телефоні вона їде під пальцем) */
+html:has(dialog[open]) { overflow: hidden; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+dialog::backdrop { background: var(--backdrop); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.dlg { padding: 24px; }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.dlg h2 { font: 600 25px/1.2 Literata, Georgia, serif; margin: 0; }
+.x { background: none; border: 0; font-size: 26px; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px 8px; border-radius: 10px; }
+.x:hover { background: var(--accent-soft); }
+.lines { list-style: none; margin: 0; padding: 0; }
+.lines li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.lines .title { -webkit-line-clamp: 1; font: 600 14.5px/1.35 Literata, Georgia, serif; }
+.lines .remove { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 20px; padding: 2px 6px; border-radius: 8px; }
+.lines .remove:hover { color: var(--danger); background: var(--accent-soft); }
+.total { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 22px; }
+.total b { font: 600 22px Literata, Georgia, serif; }
+.section { font: 600 17px/1.3 Literata, Georgia, serif; color: var(--ink); margin: 0 0 12px; }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.form .full { grid-column: 1 / -1; }
+@media (max-width: 520px) { .form { grid-template-columns: 1fr; } .dlg { padding: 18px; } }
+label { display: grid; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
+label input:not([type=radio]):not([type=checkbox]), label textarea {
+  font: inherit; font-weight: 400; color: var(--ink);
+  background: var(--glass-field);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 11px 13px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+label input:not([type=radio]):not([type=checkbox]):focus, label textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+label input:disabled { opacity: .6; cursor: not-allowed; }
+label .hint { font-weight: 400; color: var(--muted); }
+label input[aria-invalid="true"]:not([type=radio]):not([type=checkbox]) { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 7%, var(--glass-field)); }
+.err {
+  min-height: 0; font-size: 12.5px; font-weight: 500; color: var(--danger);
+  display: flex; align-items: center; gap: 5px;
+}
+.err:empty { display: none; }
+.err::before { content: "!"; flex: none; width: 15px; height: 15px; border-radius: 50%; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; }
+.counter { justify-self: end; font-size: 12px; font-weight: 400; margin-top: -2px; }
+.help-link { justify-self: start; font-size: 12.5px; font-weight: 500; color: var(--accent); text-decoration: none; }
+.help-link:hover { text-decoration: underline; }
+textarea { resize: vertical; min-height: 70px; }
+.form + .section, .note + .form, .note + .section { margin-top: 24px; }
+.choices + .note { margin-top: -4px; }
+.form + .form { margin-top: 12px; }
+
+/* Вибір доставки й оплати */
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.choice { display: block; cursor: pointer; }
+.choice input { position: absolute; opacity: 0; pointer-events: none; }
+.choice span {
+  display: grid; gap: 1px; height: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 14px;
+  background: var(--glass-field);
+  transition: border-color .15s, background .15s;
+}
+.choice b { color: var(--ink); font-size: 14px; }
+.choice small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
+.choice:hover span { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.choice input:checked + span { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.note { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
+.note:empty { display: none; }
+.check { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 400; font-size: 14px; cursor: pointer; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+
+/* Підказки (населений пункт, відділення) */
+.combo { position: relative; display: grid; }
+.combo-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 30;
+  max-height: 260px; overflow-y: auto;
+  list-style: none; margin: 0; padding: 4px;
+  background: var(--menu);
+  border: 1px solid var(--line); border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+}
+.combo-list li { padding: 8px 10px; border-radius: 9px; cursor: pointer; color: var(--ink); font-weight: 400; font-size: 14px; line-height: 1.35; }
+.combo-list li.active { background: var(--accent-soft); }
+.combo-list li.combo-empty { color: var(--muted); cursor: default; background: none; }
+
+.trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.msg { white-space: pre-line; margin-top: 12px; font-size: 14px; }
+.msg.error { color: var(--danger); }
+.done { text-align: center; padding: 20px 0 8px; }
+.done .check { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; background: var(--accent-soft); color: var(--ok); display: grid; place-items: center; font-size: 32px; }
+.done h2 { margin-bottom: 8px; }
+.done p { color: var(--muted); margin: 0 auto 22px; max-width: 380px; }
+
+/* З карткою книги весь рядок відкриває її (посилання на назві розтягнуте на рядок);
+   кнопка кошика лежить зверху і лишається окремою */
+.row:has(a.title) { position: relative; cursor: pointer; }
+a.title { color: inherit; text-decoration: none; }
+a.title::after { content: ""; position: absolute; inset: 0; }
+.row .ctrl { position: relative; z-index: 1; }
+a.title:focus-visible { outline: none; }
+.row:has(a.title:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Картка книги: розгорнута книга — ліворуч фото, праворуч опис, між ними корінець.
+   Без фото книга «закривається» в одну сторінку */
+/* суцільний фон: смуга з ціною прилипає донизу і має ховати текст під собою */
+dialog.book { width: min(560px, calc(100% - 24px)); overflow: hidden; background: var(--menu); }
+dialog.book.has-photos { width: min(940px, calc(100% - 24px)); }
+.spread { position: relative; display: grid; max-height: calc(100dvh - 48px); }
+.has-photos .spread { grid-template-columns: 1fr 1fr; height: min(640px, calc(100dvh - 48px)); }
+.has-photos .spread::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 56px;
+  transform: translateX(-50%); pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--spine) 46%, var(--spine-deep) 50%, var(--spine) 54%, transparent);
+}
+.leaf-photos { display: flex; flex-direction: column; min-height: 0; background: var(--stage); }
+.stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; padding: 36px 64px 20px; touch-action: pan-y; }
+.stage img {
+  display: block; max-width: 100%; max-height: 100%; object-fit: contain;
+  border-radius: 3px;
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, .3));
+}
+.stage .nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 40px; border: 1px solid var(--glass-edge); border-radius: 50%;
+  background: var(--glass-strong); color: var(--ink);
+  font-size: 24px; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.stage .prev { left: 12px; }
+.stage .next { right: 12px; }
+.thumbs { display: flex; gap: 8px; justify-content: center; padding: 0 20px 22px; overflow-x: auto; scrollbar-width: none; }
+.thumbs button {
+  flex: none; width: 44px; height: 60px; padding: 0;
+  border: 0; border-radius: 4px; overflow: hidden; cursor: pointer;
+  background: var(--line); opacity: .55;
+  transition: opacity .15s;
+}
+.thumbs button:hover, .thumbs button[aria-current="true"] { opacity: 1; }
+.thumbs button[aria-current="true"] { box-shadow: 0 0 0 2px var(--accent); }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.leaf-text { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.leaf-head { padding: 34px 36px 0; }
+.book h2 { font: 600 clamp(22px, 2.6vw, 28px)/1.2 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0 40px 10px 0; text-wrap: balance; }
+.book-by { margin: 0; color: var(--muted); font-size: 14px; }
+.book-by .author { color: var(--accent); font-weight: 500; }
+.facts {
+  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px;
+  margin: 18px 36px 0; font-size: 14px;
+}
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; }
+.facts:empty { display: none; }
+.desc { padding: 22px 36px 8px; font: 400 16px/1.7 Literata, Georgia, serif; max-width: 62ch; hyphens: auto; }
+.desc p { margin: 0 0 .9em; text-wrap: pretty; }
+.buy {
+  position: sticky; bottom: 0; margin-top: auto;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 16px 36px 20px;
+  background: var(--menu);
+  border-top: 1px solid var(--line);
+}
+.desc:empty { display: none; }
+.desc:empty + .buy { padding-top: 24px; border-top: 0; }
+.buy .price { font-size: 22px; }
+dialog.book > .x { position: absolute; top: 14px; right: 14px; z-index: 2; }
+
+@media (max-width: 720px) {
+  dialog.book, dialog.book.has-photos { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
+  .spread, .has-photos .spread { display: block; height: auto; max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
+  .has-photos .spread::after { display: none; }
+  .stage { height: min(54dvh, 440px); padding: 28px 52px 14px; }
+  .leaf-text { overflow: visible; }
+  .leaf-head { padding: 24px 20px 0; }
+  .desc { padding: 18px 20px 4px; font-size: 15.5px; }
+  .facts { margin: 16px 20px 0; }
+  .buy { padding: 14px 20px 16px; }
+  dialog.book > .x { background: var(--glass-strong); }
+}
+
+/* Окремі сторінки (книга /book/15/, «Доставка й оплата», «Контакти»…): лише свій вміст —
+   пошук і каталог живуть на головній, туди веде «Усі книги» і назва магазину в шапці.
+   Каталог сторінка все одно завантажує: з нього свіжа ціна, наявність і кошик */
+body[data-page] .toolbar,
+body[data-page] main > .summary,
+body[data-page] main > .list,
+body[data-page] main > .state,
+body[data-page] main > .more { display: none; }
+body[data-page] main { max-width: 980px; }
+/* текстова сторінка вужча за книгу, але так само по центру, як шапка й підвал; «Усі книги» — над лівим краєм аркуша */
+body[data-page]:not([data-book]) main { max-width: 752px; }
+
+/* Текстова сторінка: скляний аркуш, текст тим самим книжковим шрифтом, що й опис книги.
+   Ширина аркуша і є шириною рядка (~70 знаків) — без порожньої смуги праворуч */
+.text-page {
+  margin-top: 14px; padding: 38px 44px 34px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font: 400 16px/1.7 Literata, Georgia, serif;
+}
+.text-page h1 { font: 600 clamp(26px, 3.4vw, 36px)/1.15 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0 0 14px; text-wrap: balance; }
+.text-page h2 { font: 600 20px/1.3 Literata, Georgia, serif; margin: 28px 0 8px; }
+.text-page p, .text-page ul, .text-page ol { margin: 0 0 .8em; text-wrap: pretty; }
+.text-page > :last-child { margin-bottom: 0; }
+.text-page ul, .text-page ol { padding-left: 1.3em; }
+.text-page li + li { margin-top: .35em; }
+.text-page a { color: var(--ink); text-underline-offset: 3px; }
+.text-page b { font-weight: 600; }
+/* ще не заповнене власником — видно одразу (збирач теж попереджає) */
+.todo {
+  padding: 1px 6px; border-radius: 4px;
+  background: var(--accent-soft); color: var(--muted);
+  outline: 1px dashed color-mix(in srgb, var(--muted) 60%, transparent);
+  font: 500 14px/1.5 Onest, system-ui, sans-serif;
+}
+@media (max-width: 600px) {
+  .text-page { padding: 26px 20px 24px; font-size: 15.5px; }
+}
+.back {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid var(--glass-edge); border-radius: 999px;
+  box-shadow: 0 1px 0 var(--glass-edge) inset, 0 4px 14px rgba(0, 0, 0, .2);
+  color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500;
+}
+.back:hover { background: var(--glass-strong); }
+.back svg { color: var(--muted); }
+.book-page {
+  position: relative;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  margin-top: 14px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.book-page::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 46.5%; width: 56px;
+  transform: translateX(-50%); pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--spine) 46%, var(--spine-deep) 50%, var(--spine) 54%, transparent);
+}
+.book-page.no-photo { grid-template-columns: minmax(0, 1fr); }
+.book-page.no-photo::after { display: none; }
+.page-photo { display: grid; place-items: center; padding: 40px 48px; background: var(--stage); }
+.page-photo img {
+  display: block; max-width: 100%; max-height: 520px; object-fit: contain;
+  border-radius: 3px;
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, .3));
+}
+.page-text { display: flex; flex-direction: column; padding: 38px 44px 30px; }
+.page-text h1 { font: 600 clamp(24px, 3vw, 34px)/1.18 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0 0 10px; text-wrap: balance; }
+.book-page .facts { margin: 20px 0 0; }
+.book-page .desc { padding: 20px 0 0; }
+.page-buy { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: auto; padding-top: 24px; }
+.page-buy .price { font-size: 24px; }
+.page-buy .was { justify-content: flex-start; font-size: 13.5px; }
+.sold { color: var(--muted); font-weight: 500; }
+@media (max-width: 720px) {
+  .book-page { grid-template-columns: minmax(0, 1fr); }
+  .book-page::after { display: none; }
+  .page-photo { padding: 28px 40px; }
+  .page-photo img { max-height: 54dvh; }
+  .page-text { padding: 24px 20px 22px; }
+}
+
+/* Підвал прямо на фото; тінь тримає текст читабельним на білих сторінках.
+   Посилання для покупців — помітніші, підпис автора — ледь видний */
+footer.wrap {
+  text-align: center; margin-top: 28px;
+  color: rgba(255, 255, 255, .92);
+  text-shadow: 0 0 6px #000, 0 0 12px rgba(0, 0, 0, .8);
+}
+.footer-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 22px; font-size: 14px; font-weight: 500; }
+.footer-nav a { color: inherit; text-decoration: none; padding: 4px 0; }
+.footer-nav a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.footer-nav a[aria-current] { text-decoration: underline; text-underline-offset: 4px; }
+.credit { margin: 10px 0 0; font-size: 12px; color: rgba(255, 255, 255, .7); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
