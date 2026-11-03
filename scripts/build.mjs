@@ -2,8 +2,9 @@
 //
 // Що робить:
 //  - копіює файли сайту як є;
-//  - бере каталог з Apps Script і для кожної книги в наявності робить сторінку /book/<№>/ —
-//    з книгою вгорі й каталогом під нею, власною назвою, описом, прев'ю для месенджерів і розміткою товару для Google;
+//  - бере каталог з Apps Script і для кожної книги в наявності робить сторінку /book/<№>/ — лише з цією книгою
+//    (пошук і каталог ховаються, див. body[data-book] у стилях), власною назвою, описом, прев'ю для месенджерів
+//    і розміткою товару для Google;
 //  - на всі сторінки дописує адресу, прев'ю й розмітку магазину; робить sitemap.xml, robots.txt і 404.html.
 //
 // Звідки бере дані (окремих налаштувань немає — міняйте там, де це й так видно):
@@ -133,7 +134,8 @@ function bookArticle(b) {
     .filter(([, v]) => v)
     .map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
   const desc = paragraphs(b.description).map(p => `<p>${esc(p)}</p>`).join('');
-  return `<article class="book-page glass${photo ? '' : ' no-photo'}">
+  return `<a class="back glass" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Усі книги</a>
+  <article class="book-page glass${photo ? '' : ' no-photo'}">
     ${photo ? `<div class="page-photo"><img src="${photoUrl(photo, 800)}" alt="${esc(b.title)}" referrerpolicy="no-referrer"></div>` : ''}
     <div class="page-text">
       <h1>${esc(b.title)}</h1>

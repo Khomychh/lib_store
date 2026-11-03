@@ -701,11 +701,27 @@
   }
 
   /* Сторінка книги (/book/15/): та сама розгорнута книга, що й у картці, але на склі просто на сторінці.
-     Каталог іде нижче */
+     Лише книга — пошук і каталог живуть на головній, туди веде «Усі книги» і назва магазину в шапці.
+     Каталог сторінка все одно завантажує: з нього свіжа ціна, наявність і кошик */
+  body[data-book] .toolbar,
+  body[data-book] main > .summary,
+  body[data-book] main > .list,
+  body[data-book] main > .state,
+  body[data-book] main > .more { display: none; }
+  body[data-book] main { max-width: 980px; }
+  .back {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px 6px 10px;
+    border: 1px solid var(--glass-edge); border-radius: 999px;
+    box-shadow: 0 1px 0 var(--glass-edge) inset, 0 4px 14px rgba(0, 0, 0, .2);
+    color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500;
+  }
+  .back:hover { background: var(--glass-strong); }
+  .back svg { color: var(--muted); }
   .book-page {
     position: relative;
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-    margin-top: 18px;
+    margin-top: 14px;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     overflow: hidden;
