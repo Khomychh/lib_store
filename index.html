@@ -45,6 +45,8 @@
     --spine: rgba(0, 0, 0, .07);
     --spine-deep: rgba(0, 0, 0, .18);
     --row-hover: rgba(255, 255, 255, .5);
+    /* єдиний колір на чорно-білому сайті — лише для акцій, щоб їх було видно здалеку */
+    --sale: #b3202a;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -72,6 +74,7 @@
       --spine: rgba(0, 0, 0, .2);
       --spine-deep: rgba(0, 0, 0, .45);
       --row-hover: rgba(255, 255, 255, .06);
+      --sale: #f2827f;
     }
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -321,6 +324,39 @@
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     font: 600 11px/1.3 Onest, system-ui, sans-serif;
   }
+  /* Акція: шовкова закладка-ляссе, що звисає з верхнього краю книги, зі знижкою на ній */
+  .ribbon {
+    position: absolute; top: 0; right: 12%; z-index: 1;
+    width: max(34px, 22%);
+    padding: 10px 0 max(26px, 17cqi);
+    background: linear-gradient(90deg, #8a1520, #b8232e 40%, #c92f3a 55%, #9c1a24);
+    color: #fff;
+    font: 700 max(11px, 7cqi)/1 Onest, system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.01em;
+    text-align: center;
+    /* хвостик з вирізом, як у справжньої стрічки */
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 8px), 0 100%);
+    /* стрічка виходить з-під обрізу книги: зверху її трохи затіняє палітурка */
+    box-shadow: inset 0 3px 2px -1px rgba(0, 0, 0, .35);
+  }
+  .grid .cover { container-type: inline-size; }
+  /* закладка займає верх обкладинки — назва на тканинній палітурці опускається під неї */
+  .grid .cover.blank:has(.ribbon) { padding-top: 48%; }
+
+  .price.sale { color: var(--sale); }
+  .was {
+    display: flex; justify-content: flex-end; align-items: baseline; gap: 6px;
+    margin-bottom: 4px;
+    font-size: 12.5px; color: var(--muted); white-space: nowrap;
+  }
+  .was s { text-decoration-thickness: 1px; }
+  .was .off { color: var(--sale); font-weight: 600; font-variant-numeric: tabular-nums; }
+  /* на вітрині знижку вже видно на закладці */
+  .grid .was { justify-content: flex-start; }
+  .grid .was .off { display: none; }
+  .buy .was { justify-content: flex-start; font-size: 13.5px; }
+
   .skeleton .cover { box-shadow: none; background: var(--line); }
   .skeleton .cover::after { display: none; }
 
@@ -384,6 +420,10 @@
     .row .cover { grid-row: span 2; align-self: start; }
     .row .info { grid-column: 2 / -1; }
     .pricebox { text-align: left; display: flex; align-items: baseline; gap: 10px; }
+    /* у рядку: ціна, стара ціна зі знижкою, наявність */
+    .pricebox .was { order: 1; margin: 0; }
+    .pricebox .stock { order: 2; }
+    .grid .pricebox .was { margin-bottom: 4px; }
     .row .title { font-size: 15.5px; }
     .sort-btn { padding: 11px 14px; }
     .sort-btn .label { display: none; }
@@ -803,7 +843,7 @@
       <dl class="facts" id="bookFacts"></dl>
       <div class="desc" id="bookDesc"></div>
       <div class="buy">
-        <div><div class="price" id="bookPrice"></div><div class="stock" id="bookStock"></div></div>
+        <div id="bookPrice"></div>
         <div id="bookCtrl"></div>
       </div>
     </section>
@@ -1227,11 +1267,31 @@ function bookRow(b) {
   info.append(title, sub);
 
   const priceBox = el('div', 'pricebox');
-  priceBox.append(el('div', 'price', money(b.price)), el('div', 'stock', `в наявності: ${b.stock}`));
+  priceBox.append(...priceLines(b));
 
   li.append(bookCover(b), info, priceBox, cartControl(b, li));
   li.classList.toggle('in-cart', !!cart[b.id]);
   return li;
+}
+
+// Знижка у відсотках; 0 — книга не акційна. Стару ціну, не більшу за нинішню, скрипт не передає
+const discount = b => b.oldPrice > b.price ? Math.round((1 - b.price / b.oldPrice) * 100) : 0;
+
+// Ціна, під акцію — перекреслена стара зі знижкою над нею, і наявність
+function priceLines(b) {
+  const off = discount(b);
+  const lines = [];
+  if (off) {
+    const was = el('div', 'was');
+    const old = el('s', null, money(b.oldPrice));
+    old.prepend(el('span', 'sr-only', 'Стара ціна: '));
+    was.append(old, el('span', 'off', `−${off}%`));
+    lines.push(was);
+  }
+  const price = el('div', off ? 'price sale' : 'price', money(b.price));
+  if (off) price.prepend(el('span', 'sr-only', 'Ціна зі знижкою: '));
+  lines.push(price, el('div', 'stock', `в наявності: ${b.stock}`));
+  return lines;
 }
 
 // Відтінки тканинних палітурок: [тканина, тиснення]. Книга завжди отримує той самий
@@ -1254,7 +1314,9 @@ function bookCover(b) {
   const box = el('div', 'cover');
   box.setAttribute('aria-hidden', 'true');
   const badge = () => {
-    if (view === 'grid' && isUsed(b)) box.append(el('span', 'cond', b.condition));
+    if (view !== 'grid') return;
+    if (isUsed(b)) box.append(el('span', 'cond', b.condition));
+    if (discount(b)) box.append(el('span', 'ribbon', `−${discount(b)}%`));
   };
   const blank = () => {
     const [cloth, stamp] = clothOf(b.id);
@@ -1413,8 +1475,7 @@ function openBook(b) {
     desc.append(el('p', null, text));
   }
 
-  $('bookPrice').textContent = money(b.price);
-  $('bookStock').textContent = `в наявності: ${b.stock}`;
+  $('bookPrice').replaceChildren(...priceLines(b));
   $('bookCtrl').replaceChildren(cartControl(b, el('div')));
 
   drawPhotos();

@@ -101,7 +101,8 @@ const FIELD_OPTIONS = {
 // Запустіть вручну один раз (і щоразу, коли додали рядки в каталог за межами випадних списків).
 // У таблиці з книгами:
 //  - створює аркуш «Категорії» з випадним списком батьківської категорії;
-//  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Видавництво»;
+//  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Видавництво»,
+//    «Стара ціна»;
 //  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова — з FIELD_OPTIONS
 function setupCatalog() {
   const ss = catalog_();
@@ -141,6 +142,7 @@ function setupCatalog() {
       .build());
   });
   column('Видавництво');
+  column('Стара ціна');
 }
 
 // Номер книги → ID файлів фото по порядку (перше — обкладинка). Обхід папки повільний,
@@ -342,6 +344,8 @@ function readCatalog_() {
   const c = {
     id: col('№'), author: col('Автор'), title: col('Назва'), year: col('Рік'),
     pages: col('Сторінки'), price: col('Ціна'), stock: col('К-сть'),
+    // необов'язкова: ціна до знижки. Більша за «Ціну» — книга на сайті позначається як акційна
+    oldPrice: col('Стара ціна'),
     // необов'язкова колонка; якщо її немає — книги без опису
     description: col('Опис'),
   };
@@ -369,6 +373,9 @@ function readCatalog_() {
       // порожній опис не передаємо — каталог і так великий
       const description = c.description < 0 ? '' : String(r[c.description]).trim();
       if (description) book.description = description;
+      // стара ціна, не більша за нинішню, — не знижка; така клітинка просто ігнорується
+      const oldPrice = c.oldPrice < 0 ? 0 : Number(r[c.oldPrice]) || 0;
+      if (oldPrice > book.price) book.oldPrice = oldPrice;
       Object.keys(optional).forEach(key => {
         const value = optional[key] < 0 ? '' : String(r[optional[key]]).trim();
         if (value) book[key] = value;
