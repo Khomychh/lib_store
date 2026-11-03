@@ -4,7 +4,7 @@
 // URL веб-застосунку Google Apps Script (див. docs/setup.md, крок 3)
 const API_URL = 'https://script.google.com/macros/s/AKfycbzECOv83-3zeRQTkKGr7dDt73XYR64jI6Qv5gPQTOQrSvt9n8VFlsrIMkWJWAIaV6jO/exec';
 
-const PAGE = 48;
+const PAGE = 48; // книг на сторінці каталогу; те саме число — PAGE у scripts/build.mjs
 const CART_KEY = 'lib_store_cart';
 const BOOKS_KEY = 'lib_store_books';
 
@@ -14,7 +14,7 @@ const money = n => n.toLocaleString('uk-UA') + ' грн';
 let books = [];
 let byId = new Map();
 let filtered = [];
-let shown = PAGE;
+let pageNo = 1; // поточна сторінка каталогу; з адреси читається в init()
 let cart = loadCart();
 let sortBy = 'newest';
 const VIEW_KEY = 'lib_store_view';
@@ -49,6 +49,7 @@ async function init() {
     showState('Сайт ще не налаштовано: вкажіть API_URL в index.html.', true);
     return;
   }
+  if (onCatalogPath()) pageNo = pageFromPath();
   // спочатку показуємо збережений каталог, поки Google віддає свіжий
   const cached = loadCachedBooks();
   if (cached) setBooks(cached, false);
@@ -84,7 +85,99 @@ function loadCachedBooks() {
   } catch { return null; }
 }
 
-function setBooks(catalog, keepShown) {
+// ---------- Сторінки каталогу: /, /storinka/2/, /storinka/3/… ----------
+// Збирач робить такі сторінки й статично (scripts/build.mjs) — для Google і без JavaScript;
+// тут перемикаємо їх без перезавантаження. Кнопка «Назад» повертає на попередню сторінку
+const PAGE_PATH = /^\/storinka\/(\d+)\/?$/;
+function pageFromPath() {
+  const m = location.pathname.match(PAGE_PATH);
+  return m ? Math.max(1, Number(m[1])) : 1;
+}
+const pagePath = n => n > 1 ? `/storinka/${n}/` : '/';
+// адресу міняємо лише на сторінках каталогу: на сторінці книги чи 404 вона своя
+const onCatalogPath = () => !document.body.hasAttribute('data-page') &&
+  (location.pathname === '/' || location.pathname.endsWith('/index.html') || PAGE_PATH.test(location.pathname));
+
+// Адреса = сторінка каталогу + вибрана категорія; відкрита картка книги (#book-…) лишається
+function syncUrl(push) {
+  const hash = location.hash.startsWith('#book-') ? location.hash : catHash();
+  const path = onCatalogPath() ? pagePath(pageNo) : location.pathname;
+  if (path + hash === location.pathname + location.hash) return;
+  history[push ? 'pushState' : 'replaceState'](null, '', path + location.search + hash);
+}
+
+function goPage(n) {
+  pageNo = n;
+  render();
+  syncUrl(true);
+  // до початку каталогу, якщо ми нижче (панель пошуку прилипає згори — лишаємо їй місце)
+  const top = $('count').getBoundingClientRect().top + scrollY - 90;
+  if (scrollY > top) scrollTo({ top, behavior: 'instant' });
+}
+
+addEventListener('popstate', () => {
+  if (!onCatalogPath() || !books.length) return;
+  pageNo = pageFromPath();
+  render();
+});
+
+// Номери в перемикачі: перша, остання і сусіди поточної; проміжки — «…»
+function pagerItems(cur, pages) {
+  const keep = new Set([1, pages, cur - 1, cur, cur + 1]);
+  const out = [];
+  for (let n = 1; n <= pages; n++) {
+    if (keep.has(n)) out.push(n);
+    else if (out.at(-1) !== '…') out.push('…');
+  }
+  return out;
+}
+
+// Розмітку перемикача повторює збирач (pagerHtml у scripts/build.mjs) — міняєте тут, міняйте й там
+function renderPager(pages) {
+  const nav = $('pager');
+  nav.textContent = '';
+  nav.hidden = pages < 2;
+  if (pages < 2) return;
+  const link = (n, cls, content, label) => {
+    const a = el('a', cls);
+    a.href = pagePath(n);
+    a.append(...content);
+    if (label) a.setAttribute('aria-label', label);
+    a.onclick = e => { e.preventDefault(); goPage(n); };
+    return a;
+  };
+  const step = (n, dir) => {
+    const parts = dir < 0
+      ? [arrow(dir), el('span', 'label', 'Попередня')]
+      : [el('span', 'label', 'Наступна'), arrow(dir)];
+    if (n < 1 || n > pages) {
+      const off = el('span', 'step');
+      off.setAttribute('aria-disabled', 'true');
+      off.append(...parts);
+      return off;
+    }
+    return link(n, 'step', parts, dir < 0 ? 'Попередня сторінка' : 'Наступна сторінка');
+  };
+  nav.append(step(pageNo - 1, -1));
+  for (const n of pagerItems(pageNo, pages)) {
+    if (n === '…') nav.append(el('span', 'gap', '…'));
+    else if (n === pageNo) {
+      const cur = el('span', 'num', String(n));
+      cur.setAttribute('aria-current', 'page');
+      nav.append(cur);
+    } else nav.append(link(n, 'num', [String(n)], `Сторінка ${n}`));
+  }
+  nav.append(step(pageNo + 1, 1));
+}
+function arrow(dir) {
+  const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  s.setAttribute('width', '16'); s.setAttribute('height', '16'); s.setAttribute('viewBox', '0 0 24 24');
+  s.setAttribute('aria-hidden', 'true');
+  s.innerHTML = `<path d="${dir < 0 ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  return s;
+}
+
+function setBooks(catalog, keepPage) {
   books = catalog.books;
   byId = new Map(books.map(b => [b.id, b]));
   buildCategories(catalog.categories);
@@ -100,7 +193,9 @@ function setBooks(catalog, keepShown) {
   }
   saveCart();
   pruneFilters();
-  applyFilter(keepShown);
+  // перше завантаження — сторінка з адреси; свіжий каталог після збереженого — та сама сторінка
+  applyFilter(true);
+  if (!keepPage) syncUrl(false);
   updateCartBar();
   drawPageBook();
   openFromHash();
@@ -112,7 +207,8 @@ function matchesSearch(b, words) {
   return words.every(w => hay.includes(w));
 }
 
-function applyFilter(keepShown) {
+// keepPage — лишити поточну сторінку (нові дані); інакше (змінили пошук, фільтр, сортування) — перша сторінка
+function applyFilter(keepPage) {
   const words = searchWords();
   filtered = books.filter(b => inCategory(b) && passFilters(b) && matchesSearch(b, words));
   const collator = new Intl.Collator('uk');
@@ -126,33 +222,27 @@ function applyFilter(keepShown) {
     'year-desc': (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0),
   };
   filtered.sort(sorters[sortBy]);
-  if (!keepShown) shown = PAGE;
+  if (!keepPage) pageNo = 1;
   render();
   renderFilters();
+  if (!keepPage) syncUrl(false);
 }
 
 function render() {
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  // сторінки, якої вже немає (книги продали, звузили фільтр), — показуємо останню
+  if (pageNo > pages) { pageNo = pages; syncUrl(false); }
   const list = $('list');
   list.textContent = '';
   const frag = document.createDocumentFragment();
-  for (const b of filtered.slice(0, shown)) frag.append(bookRow(b));
+  for (const b of filtered.slice((pageNo - 1) * PAGE, pageNo * PAGE)) frag.append(bookRow(b));
   list.append(frag);
+  renderPager(pages);
 
   $('count').textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
   showState(filtered.length ? '' : cat
     ? 'У цій категорії нічого не знайдено. Спробуйте інший запит або виберіть «Усі книги».'
     : 'Нічого не знайдено. Спробуйте інший запит.');
-  $('more').hidden = shown >= filtered.length;
-}
-
-// Дописує наступну порцію книг у кінець списку, не перемальовуючи вже показані
-function loadMore() {
-  if (shown >= filtered.length) return;
-  const frag = document.createDocumentFragment();
-  for (const b of filtered.slice(shown, shown + PAGE)) frag.append(bookRow(b));
-  shown += PAGE;
-  $('list').append(frag);
-  $('more').hidden = shown >= filtered.length;
 }
 
 function plural(n, one, few, many) {

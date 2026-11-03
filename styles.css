@@ -452,7 +452,37 @@ header { padding: 56px 16px 32px; }
 
 .state { text-align: center; color: var(--muted); padding: 40px 16px; border-radius: var(--radius); margin-top: 12px; }
 .state.error { color: var(--danger); }
-.more { height: 1px; }
+/* Перемикач сторінок каталогу: скляні капсули під полицею; поточна — залита, як вибраний фільтр */
+.pager {
+  display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px;
+  margin-top: 18px;
+}
+.pager a, .pager span {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  min-width: 42px; height: 42px; padding: 0 12px;
+  border-radius: 999px;
+  font-weight: 500; font-variant-numeric: tabular-nums;
+  color: var(--ink); text-decoration: none;
+}
+.pager a, .pager .step, .pager [aria-current] {
+  border: 1px solid var(--glass-edge);
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: 0 1px 0 var(--glass-edge) inset, 0 4px 14px rgba(0, 0, 0, .2);
+}
+.pager a:hover { background: var(--glass-strong); }
+.pager [aria-current] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.pager .step { padding: 0 14px; }
+.pager .step[aria-disabled] { opacity: .45; }
+/* «…» стоїть просто на фото — тінь, як у підвалі */
+.pager .gap { min-width: 20px; padding: 0; color: rgba(255, 255, 255, .9); text-shadow: 0 0 6px #000; }
+@media (max-width: 600px) {
+  .pager { gap: 4px; }
+  .pager a, .pager span { min-width: 38px; height: 40px; padding: 0 8px; }
+  .pager .step .label { display: none; }
+  .pager .step { padding: 0 10px; }
+}
 
 .btn {
   font-weight: 600; cursor: pointer;
@@ -684,7 +714,7 @@ body[data-page] .toolbar,
 body[data-page] main > .summary,
 body[data-page] main > .list,
 body[data-page] main > .state,
-body[data-page] main > .more { display: none; }
+body[data-page] main > .pager { display: none; }
 body[data-page] main { max-width: 980px; }
 /* текстова сторінка вужча за книгу, але так само по центру, як шапка й підвал; «Усі книги» — над лівим краєм аркуша */
 body[data-page]:not([data-book]) main { max-width: 752px; }

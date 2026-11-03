@@ -83,15 +83,6 @@ const fitPlaceholder = () => { $('search').placeholder = narrow.matches ? 'По�
 narrow.addEventListener('change', fitPlaceholder);
 fitPlaceholder();
 
-// Нескінченна прокрутка: коли до кінця списку лишається ~2 екрани, дописуємо ще книги
-const moreObserver = new IntersectionObserver(entries => {
-  if (!entries[0].isIntersecting) return;
-  loadMore();
-  // якщо після дописування кінець списку досі видно — перевіряємо ще раз
-  moreObserver.unobserve($('more'));
-  moreObserver.observe($('more'));
-}, { rootMargin: '0px 0px 1200px 0px' });
-moreObserver.observe($('more'));
 $('openOrder').addEventListener('click', () => {
   renderLines();
   $('orderBody').hidden = false;

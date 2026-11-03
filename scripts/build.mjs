@@ -104,23 +104,21 @@ function seo({ url, title, description, image, imageAlt, data, noindex }) {
     '<meta property="og:locale" content="uk_UA">',
     '<meta name="twitter:card" content="summary_large_image">',
     // «<» у JSON усередині <script> екрануємо, щоб текст з таблиці не міг закрити тег
-    `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`,
-  ].join('\n');
+    data && `<script type="application/ld+json">${JSON.stringify(data).replace(/</g, '\\u003c')}</script>`,
+  ].filter(Boolean).join('\n');
 }
 
 // Сторінка з шаблону index.html: свої назва, опис, шапка для пошуковиків і (для книги) сама книга
-function page({ html: base = template, title, description, head, book, bodyData }) {
+// nested — сторінка глибше кореня без власного заголовка (сторінки каталогу 2, 3…): лише <base>, назва магазину лишається <h1>
+function page({ html: base = template, title, description, head, book, bodyData, nested }) {
   let html = base
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
     .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${esc(description)}">`)
     .replace(/<!-- seo:[\s\S]*?-->/, head);
-  if (book) {
-    // сторінки глибше кореня: відносні адреси (фото, іконки, стилі) мають іти від кореня сайту
-    html = html
-      .replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<base href="/">')
-      // головний заголовок сторінки — назва книги, а назва магазину стає посиланням на головну
-      .replace(BRAND, '$1<a class="brand" href="/">$2</a>');
-  }
+  // сторінки глибше кореня: відносні адреси (фото, іконки, стилі) мають іти від кореня сайту
+  if (book || nested) html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<base href="/">');
+  // головний заголовок сторінки — назва книги, а назва магазину стає посиланням на головну
+  if (book) html = html.replace(BRAND, '$1<a class="brand" href="/">$2</a>');
   if (book) html = html.replace(/<!-- book:[\s\S]*?-->/, book);
   if (bodyData) html = html.replace('<body>', `<body ${bodyData}>`);
   return html;
@@ -294,21 +292,59 @@ function staticRow(b) {
     `<div class="info"><a class="title" href="/book/${encodeURIComponent(b.id)}/">${esc(b.title)}</a><div class="byline">${by}</div></div>` +
     `<div class="pricebox">${priceLines(b)}</div><div class="ctrl"></div></li>`;
 }
-// «Нові надходження» — як у скрипта: більший № — новіша книга. Беремо весь каталог, а не лише книги зі сторінками
+// Сторінки каталогу: головна — перша, далі /storinka/2/, /storinka/3/… по 48 книг, з перемикачем під ними.
+// Порядок «Нові надходження», як у скрипта: більший № — новіша книга. Беремо весь каталог, а не лише книги зі сторінками.
+// Номери в перемикачі й розмітка — як у pagerItems/renderPager (js/catalog.js)
 const PAGE = 48;
-const first = [...catalog.books].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0)).slice(0, PAGE);
-const total = catalog.books.length;
-const home = template
-  .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${first.map(staticRow).join('\n')}\n  </ul>`)
-  .replace('<div class="count" id="count">&nbsp;</div>', `<div class="count" id="count">${total} ${plural(total, 'книга', 'книги', 'книг')}</div>`);
-if (home === template) throw new Error('Не знайшов у index.html місце для каталогу (<ul class="list" id="list"></ul>)');
-
-writeFileSync(join(OUT, 'index.html'), page({
-  html: home,
-  title: HOME_TITLE,
-  description: DESCRIPTION,
-  head: seo({ url: SITE + '/', title: NAME, description: DESCRIPTION, data: store }),
-}));
+const sorted = [...catalog.books].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+const total = sorted.length;
+const pageCount = Math.max(1, Math.ceil(total / PAGE));
+const pagePath = n => n > 1 ? `/storinka/${n}/` : '/';
+function pagerHtml(cur) {
+  if (pageCount < 2) return '';
+  const keep = new Set([1, pageCount, cur - 1, cur, cur + 1]);
+  const items = [];
+  for (let n = 1; n <= pageCount; n++) {
+    if (keep.has(n)) items.push(n);
+    else if (items.at(-1) !== '…') items.push('…');
+  }
+  const arrow = dir => `<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="${dir < 0 ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const step = (n, dir) => {
+    const inner = dir < 0 ? `${arrow(dir)}<span class="label">Попередня</span>` : `<span class="label">Наступна</span>${arrow(dir)}`;
+    return n < 1 || n > pageCount
+      ? `<span class="step" aria-disabled="true">${inner}</span>`
+      : `<a class="step" href="${pagePath(n)}" rel="${dir < 0 ? 'prev' : 'next'}" aria-label="${dir < 0 ? 'Попередня' : 'Наступна'} сторінка">${inner}</a>`;
+  };
+  return step(cur - 1, -1) + items.map(n => n === '…' ? '<span class="gap">…</span>'
+    : n === cur ? `<span class="num" aria-current="page">${n}</span>`
+    : `<a class="num" href="${pagePath(n)}" aria-label="Сторінка ${n}">${n}</a>`).join('') + step(cur + 1, 1);
+}
+const countText = `${total} ${plural(total, 'книга', 'книги', 'книг')}`;
+const catalogPages = [];
+for (let n = 1; n <= pageCount; n++) {
+  const rows = sorted.slice((n - 1) * PAGE, n * PAGE);
+  const html = template
+    .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
+    .replace('<div class="count" id="count">&nbsp;</div>', `<div class="count" id="count">${countText}</div>`)
+    .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) => `<nav class="pager" id="pager"${attrs}>${pagerHtml(n)}</nav>`);
+  if (!html.includes('<ul class="list grid" id="list">') || !html.includes('<nav class="pager" id="pager"')) {
+    throw new Error('Не знайшов у index.html місце для каталогу чи перемикача сторінок (id="list", id="pager")');
+  }
+  const url = SITE + pagePath(n);
+  const title = n > 1 ? `${HOME_TITLE} — сторінка ${n}` : HOME_TITLE;
+  const description = n > 1 ? `Сторінка ${n} з ${pageCount}. ${DESCRIPTION}` : DESCRIPTION;
+  const out = n > 1 ? join(OUT, 'storinka', String(n)) : OUT;
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, 'index.html'), page({
+    html,
+    title,
+    description,
+    // кожна сторінка — сама собі канонічна: на ній інші книги, ніж на головній
+    head: seo({ url, title: n > 1 ? `${NAME} — сторінка ${n}` : NAME, description, data: n > 1 ? undefined : store }),
+    nested: n > 1,
+  }));
+  if (n > 1) catalogPages.push(url);
+}
 
 // ---------- текстові сторінки з папки pages/ (доставка, повернення, контакти) ----------
 // Файл pages/<адреса>.html — шматок HTML: назва сторінки з <h1>, опис для Google — з першого абзацу.
@@ -375,6 +411,7 @@ writeFileSync(join(OUT, 'sitemap.xml'), [
   '<?xml version="1.0" encoding="UTF-8"?>',
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
   `  <url><loc>${SITE}/</loc></url>`,
+  ...catalogPages.map(url => `  <url><loc>${url}</loc></url>`),
   ...textPages.map(p => `  <url><loc>${SITE}/${p.slug}/</loc></url>`),
   ...books.map(b => `  <url><loc>${esc(bookUrl(b))}</loc></url>`),
   '</urlset>',
