@@ -1274,7 +1274,8 @@ function bookRow(b) {
   return li;
 }
 
-// Знижка у відсотках; 0 — книга не акційна. Стару ціну, не більшу за нинішню, скрипт не передає
+// Знижка у відсотках; 0 — книга не акційна. Скрипт передає price — ціну продажу (акційну, якщо є)
+// і oldPrice — звичайну ціну, лише коли акційна справді менша
 const discount = b => b.oldPrice > b.price ? Math.round((1 - b.price / b.oldPrice) * 100) : 0;
 
 // Ціна, під акцію — перекреслена стара зі знижкою над нею, і наявність
@@ -1284,7 +1285,7 @@ function priceLines(b) {
   if (off) {
     const was = el('div', 'was');
     const old = el('s', null, money(b.oldPrice));
-    old.prepend(el('span', 'sr-only', 'Стара ціна: '));
+    old.prepend(el('span', 'sr-only', 'Звичайна ціна: '));
     was.append(old, el('span', 'off', `−${off}%`));
     lines.push(was);
   }
