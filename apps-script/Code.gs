@@ -71,7 +71,20 @@ function catalog_() {
 }
 
 function catalogSheet_(ss) {
-  return CATALOG_SHEET ? ss.getSheetByName(CATALOG_SHEET) : ss.getSheets()[0];
+  const sheet = CATALOG_SHEET ? ss.getSheetByName(CATALOG_SHEET) : ss.getSheets()[0];
+  if (!sheet) {
+    const names = ss.getSheets().map(s => `«${s.getName()}»`).join(', ');
+    throw new Error(`У таблиці з книгами немає аркуша «${CATALOG_SHEET}» (CATALOG_SHEET). Є аркуші: ${names}`);
+  }
+  // порожній чи службовий аркуш замість каталогу: у першому рядку мають бути заголовки, серед них «Назва»
+  const head = sheet.getLastColumn()
+    ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim())
+    : [];
+  if (head.indexOf('Назва') < 0) {
+    throw new Error(`Аркуш «${sheet.getName()}» не схожий на каталог: у першому рядку немає заголовка «Назва». ` +
+      (CATALOG_SHEET ? 'Перевірте CATALOG_SHEET.' : 'Впишіть назву аркуша з книгами в CATALOG_SHEET або перетягніть цей аркуш першим.'));
+  }
+  return sheet;
 }
 
 // Категорії в порядку рядків аркуша: [{ name, parent }]. Сайт сам будує з них дерево
