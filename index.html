@@ -6,8 +6,13 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#2b2b2b" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#141414" media="(prefers-color-scheme: dark)">
-<title>КРАМНИЦЯ Оленки Шевчук</title>
+<title>КРАМНИЦЯ Оленки Шевчук — книги з доставкою по Україні</title>
 <meta name="author" content="Ivan Khomych">
+<!-- Опис — те, що Google показує під назвою сторінки. Назва магазину — у заголовку шапки (h1 з класом brand) -->
+<meta name="description" content="Книжкова крамниця Оленки Шевчук: богословська, психологічна, дитяча й художня література — нові та вживані книги. Доставка Новою поштою й Укрпоштою по Україні.">
+<!-- seo: сюди збирач (scripts/build.mjs) вставляє адресу сторінки, прев'ю для месенджерів і розмітку для Google.
+     Домен береться з файлу CNAME, назва — із заголовка шапки, опис — з meta description вище -->
+
 <!-- Іконка: розгорнута книга на плитці; у темній темі браузера кольори міняються місцями -->
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><style>rect{fill:%23151515}path{stroke:%23f4f4f2}@media (prefers-color-scheme:dark){rect{fill:%23f4f4f2}path{stroke:%23151515}}</style><rect width='32' height='32' rx='7'/><path d='M16 10.5C13.8 8.9 11 8.5 7.5 9v13.5c3.5-.5 6.3-.1 8.5 1.5 2.2-1.6 5-2 8.5-1.5V9C21 8.5 18.2 8.9 16 10.5zM16 10.5v13.5' fill='none' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/></svg>">
 <!-- iPhone: іконка для «На початковий екран», 180×180, кути заокруглює сама система -->
@@ -123,7 +128,8 @@
     border-radius: 24px;
     box-shadow: var(--shadow-lg);
   }
-  h1 {
+  .brand {
+    display: block; color: inherit; text-decoration: none;
     font: 600 clamp(30px, 5vw, 46px)/1.08 Literata, Georgia, serif;
     font-optical-sizing: auto;
     letter-spacing: -.015em;
@@ -694,6 +700,45 @@
     dialog.book > .x { background: var(--glass-strong); }
   }
 
+  /* Сторінка книги (/book/15/): та сама розгорнута книга, що й у картці, але на склі просто на сторінці.
+     Каталог іде нижче */
+  .book-page {
+    position: relative;
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    margin-top: 18px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .book-page::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 46.5%; width: 56px;
+    transform: translateX(-50%); pointer-events: none;
+    background: linear-gradient(90deg, transparent, var(--spine) 46%, var(--spine-deep) 50%, var(--spine) 54%, transparent);
+  }
+  .book-page.no-photo { grid-template-columns: minmax(0, 1fr); }
+  .book-page.no-photo::after { display: none; }
+  .page-photo { display: grid; place-items: center; padding: 40px 48px; background: var(--stage); }
+  .page-photo img {
+    display: block; max-width: 100%; max-height: 520px; object-fit: contain;
+    border-radius: 3px;
+    filter: drop-shadow(0 14px 28px rgba(0, 0, 0, .3));
+  }
+  .page-text { display: flex; flex-direction: column; padding: 38px 44px 30px; }
+  .page-text h1 { font: 600 clamp(24px, 3vw, 34px)/1.18 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0 0 10px; text-wrap: balance; }
+  .book-page .facts { margin: 20px 0 0; }
+  .book-page .desc { padding: 20px 0 0; }
+  .page-buy { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: auto; padding-top: 24px; }
+  .page-buy .price { font-size: 24px; }
+  .page-buy .was { justify-content: flex-start; font-size: 13.5px; }
+  .sold { color: var(--muted); font-weight: 500; }
+  @media (max-width: 720px) {
+    .book-page { grid-template-columns: minmax(0, 1fr); }
+    .book-page::after { display: none; }
+    .page-photo { padding: 28px 40px; }
+    .page-photo img { max-height: 54dvh; }
+    .page-text { padding: 24px 20px 22px; }
+  }
+
   /* Підпис автора: ледь помітний, прямо на фото; тінь тримає його читабельним на білих сторінках */
   footer.wrap {
     text-align: center; margin-top: 24px;
@@ -711,7 +756,7 @@
 
 <header>
   <div class="plaque glass">
-    <h1>КРАМНИЦЯ Оленки Шевчук</h1>
+    <h1 class="brand">КРАМНИЦЯ Оленки Шевчук</h1>
   </div>
 </header>
 
@@ -749,10 +794,12 @@
 </div>
 
 <main class="wrap">
+  <!-- book: на сторінці книги (/book/15/) збирач вставляє сюди саму книгу, каталог іде під нею -->
   <div class="summary">
     <div class="count" id="count">&nbsp;</div>
     <span id="picked" style="display:contents"></span>
   </div>
+  <noscript><p class="state">Каталог показується за допомогою JavaScript. Увімкніть його в браузері, щоб переглянути книги й оформити замовлення.</p></noscript>
   <ul class="list" id="list"></ul>
   <div class="state" id="state" hidden></div>
   <div class="more" id="more" aria-hidden="true" hidden></div>
@@ -956,6 +1003,7 @@ function setBooks(catalog, keepShown) {
   pruneFilters();
   applyFilter(keepShown);
   updateCartBar();
+  drawPageBook();
   openFromHash();
 }
 
@@ -1272,7 +1320,9 @@ function bookRow(b) {
   // позначка на обкладинці схована від читачів екрана разом з обкладинкою — дублюємо її для них
   if (view === 'grid' && isUsed(b)) sub.append(el('span', 'sr-only', `, стан: ${b.condition}`));
   const title = el('a', 'title', b.title);
-  title.href = '#book-' + encodeURIComponent(b.id);
+  // справжня адреса сторінки книги — за нею Google знаходить книги, а середня кнопка миші відкриває її окремо;
+  // звичайний клік відкриває картку тут же, без переходу
+  title.href = '/book/' + encodeURIComponent(b.id) + '/';
   title.onclick = e => { e.preventDefault(); openBook(b); };
   info.append(title, sub);
 
@@ -1414,6 +1464,31 @@ function setQty(id, q) {
   if (q) cart[id] = q; else delete cart[id];
   saveCart();
   updateCartBar();
+  syncControls(id);
+}
+
+// В однієї книги буває кілька кнопок кошика: у рядку каталогу і на сторінці книги.
+// Після зміни перемальовуємо ті, якими не користувались, — щоб не збити фокус з тієї, де людина зараз
+function syncControls(id) {
+  const active = document.activeElement;
+  const row = $('list').querySelector(`[data-id="${CSS.escape(id)}"]`);
+  if (row && !row.contains(active)) row.replaceWith(bookRow(byId.get(id)));
+  if (id === PAGE_BOOK && !$('pageCtrl').contains(active)) drawPageBook();
+}
+
+// Сторінка книги (/book/15/): збирач кладе номер книги в <body data-book="15">, а сам опис — у розмітку.
+// Ціну й наявність підставляємо свіжі з каталогу: сторінку могли зібрати до останньої зміни в таблиці
+const PAGE_BOOK = document.body.dataset.book || '';
+function drawPageBook() {
+  if (!PAGE_BOOK) return;
+  const b = byId.get(PAGE_BOOK);
+  if (!b) {
+    $('pagePrice').replaceChildren(el('div', 'sold', 'Цієї книги зараз немає в наявності'));
+    $('pageCtrl').textContent = '';
+    return;
+  }
+  $('pagePrice').replaceChildren(...priceLines(b));
+  $('pageCtrl').replaceChildren(cartControl(b, el('div')));
 }
 
 function cartLines() {
@@ -1490,7 +1565,8 @@ function openBook(b) {
   $('bookCtrl').replaceChildren(cartControl(b, el('div')));
 
   drawPhotos();
-  history.replaceState(null, '', '#book-' + encodeURIComponent(b.id));
+  // від поточної адреси, а не відносно: на сторінках книг стоїть <base href="/">, і '#book-…' вело б на головну
+  history.replaceState(null, '', location.pathname + location.search + '#book-' + encodeURIComponent(b.id));
   const dlg = $('book');
   if (!dlg.open) dlg.showModal();
   dlg.querySelector('.leaf-text').scrollTop = 0;
