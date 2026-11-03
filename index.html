@@ -419,14 +419,21 @@
     .row { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 6px 14px; padding: 12px 16px; }
     .row .cover { grid-row: span 2; align-self: start; }
     .row .info { grid-column: 2 / -1; }
-    .pricebox { text-align: left; display: flex; align-items: baseline; gap: 10px; }
+    /* що не влазить у рядок до кнопки кошика (зазвичай наявність), переходить на наступний */
+    .pricebox { text-align: left; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
     /* у рядку: ціна, стара ціна зі знижкою, наявність */
     .pricebox .was { order: 1; margin: 0; }
     .pricebox .stock { order: 2; }
     .grid .pricebox .was { margin-bottom: 4px; }
     .row .title { font-size: 15.5px; }
+    /* iPhone збільшує сторінку при фокусі на полі з текстом, меншим за 16px */
+    input, textarea { font-size: 16px !important; }
+    /* на телефоні кнопки панелі — лише значки, щоб полю пошуку лишилось місце */
     .sort-btn { padding: 11px 14px; }
-    .sort-btn .label { display: none; }
+    .sort-btn .label, .sort-btn .chev { display: none; }
+    /* меню відкриваються на всю ширину панелі, а не від своєї кнопки — інакше вилазять за край екрана */
+    .sort, .filter { position: static; }
+    .sort-menu, .filter-menu { left: 0; right: 0; min-width: 0; max-width: none; }
     .list.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 8px; }
   }
   /* кругла, на всю висоту панелі, як сусідні кнопки (ті розтягуються своїми обгортками) */
@@ -509,6 +516,8 @@
     overscroll-behavior: contain;
   }
   dialog[open] { animation: rise .2s ease; }
+  /* поки відкрите вікно, сторінка під ним не гортається (інакше на телефоні вона їде під пальцем) */
+  html:has(dialog[open]) { overflow: hidden; }
   @keyframes rise { from { opacity: 0; transform: translateY(12px); } }
   dialog::backdrop { background: var(--backdrop); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
   .dlg { padding: 24px; }
@@ -1119,8 +1128,9 @@ function openFilters() {
   menu.hidden = false;
   $('filterBtn').setAttribute('aria-expanded', 'true');
   buildFilterMenu();
-  // не далі за нижній край вікна: далі меню гортається саме
-  menu.style.maxHeight = Math.max(240, innerHeight - menu.getBoundingClientRect().top - 16) + 'px';
+  // не далі за нижній край вікна і не під смугу кошика: далі меню гортається саме
+  const bar = $('cartbar').classList.contains('show') ? innerHeight - $('cartbar').getBoundingClientRect().top : 0;
+  menu.style.maxHeight = Math.max(240, innerHeight - bar - menu.getBoundingClientRect().top - 16) + 'px';
   menu.querySelector('input')?.focus();
 }
 function closeFilters() {
@@ -1961,6 +1971,12 @@ $('viewBtn').addEventListener('click', () => {
   if (books.length) render();
 });
 applyView();
+
+// повна підказка в полі пошуку на телефоні обрізається — там лишаємо коротку
+const narrow = matchMedia('(max-width: 600px)');
+const fitPlaceholder = () => { $('search').placeholder = narrow.matches ? 'Пошук' : 'Назва, автор або видавництво'; };
+narrow.addEventListener('change', fitPlaceholder);
+fitPlaceholder();
 
 // Нескінченна прокрутка: коли до кінця списку лишається ~2 екрани, дописуємо ще книги
 const moreObserver = new IntersectionObserver(entries => {
