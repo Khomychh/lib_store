@@ -12,6 +12,9 @@
 const CATALOG_ID = 'ВСТАВТЕ_ID_ТАБЛИЦІ_З_КНИГАМИ';
 // Назва аркуша з книгами; порожньо — перший аркуш
 const CATALOG_SHEET = '';
+// Аркуш з деревом категорій у таблиці з книгами: «Категорія» і «Батьківська» (порожньо — верхній рівень).
+// Створюється функцією setupCatalog; якщо аркуша немає — сайт працює без категорій
+const CATEGORIES_SHEET = 'Категорії';
 // ID папки на Google Диску з фото книг (частина посилання після /folders/); порожньо — без фото.
 // Файл називається номером книги з колонки «№»: 15.jpg — обкладинка, 15-2.jpg, 15-3.jpg — ще фото
 const PHOTOS_FOLDER = '';
@@ -60,7 +63,84 @@ function doGet() {
   const books = readCatalog_()
     .filter(b => b.stock > 0)
     .map(b => Object.assign(b, { photos: photos[b.id.toLowerCase()] || [] }));
-  return json_({ ok: true, books });
+  return json_({ ok: true, books, categories: readCategories_() });
+}
+
+function catalog_() {
+  return SpreadsheetApp.openById(CATALOG_ID);
+}
+
+function catalogSheet_(ss) {
+  return CATALOG_SHEET ? ss.getSheetByName(CATALOG_SHEET) : ss.getSheets()[0];
+}
+
+// Категорії в порядку рядків аркуша: [{ name, parent }]. Сайт сам будує з них дерево
+// і ховає категорії, в яких немає книг у наявності
+function readCategories_() {
+  const sheet = catalog_().getSheetByName(CATEGORIES_SHEET);
+  if (!sheet) return [];
+  const values = sheet.getDataRange().getValues();
+  const head = values[0].map(h => String(h).trim());
+  const name = head.indexOf('Категорія');
+  const parent = head.indexOf('Батьківська');
+  if (name < 0) return [];
+  const seen = {};
+  return values.slice(1)
+    .map(r => ({ name: String(r[name]).trim(), parent: parent < 0 ? '' : String(r[parent]).trim() }))
+    .filter(c => c.name && !seen[c.name] && (seen[c.name] = true));
+}
+
+// Підказки у випадних списках каталогу. Інше значення теж можна вписати (таблиця лише попередить),
+// і воно з'явиться у фільтрі на сайті, тож пишіть однаково: «Добрий», а не «добрий» чи «Добрий стан»
+const FIELD_OPTIONS = {
+  'Стан': ['Нова', 'Як нова', 'Добрий', 'Задовільний'],
+  'Обкладинка': ['Тверда', 'М’яка'],
+  'Мова': ['Українська', 'Англійська', 'Російська'],
+};
+
+// Запустіть вручну один раз (і щоразу, коли додали рядки в каталог за межами випадних списків).
+// У таблиці з книгами:
+//  - створює аркуш «Категорії» з випадним списком батьківської категорії;
+//  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Видавництво»;
+//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова — з FIELD_OPTIONS
+function setupCatalog() {
+  const ss = catalog_();
+  let sheet = ss.getSheetByName(CATEGORIES_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(CATEGORIES_SHEET, ss.getSheets().length);
+    sheet.getRange(1, 1, 1, 2).setValues([['Категорія', 'Батьківська']]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+    sheet.setColumnWidths(1, 2, 280);
+  }
+  const list = SpreadsheetApp.newDataValidation()
+    .requireValueInRange(sheet.getRange('A2:A'), true)
+    .setAllowInvalid(false)
+    .setHelpText('Виберіть категорію з аркуша «Категорії»')
+    .build();
+  sheet.getRange('B2:B').setDataValidation(list);
+
+  const books = catalogSheet_(ss);
+  const head = books.getRange(1, 1, 1, books.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const rows = Math.max(books.getMaxRows() - 1, 1);
+  // номер колонки за заголовком; немає — дописуємо її в кінець
+  const column = name => {
+    let col = head.indexOf(name) + 1;
+    if (!col) {
+      head.push(name);
+      col = head.length;
+      books.getRange(1, col).setValue(name).setFontWeight('bold');
+    }
+    return col;
+  };
+
+  books.getRange(2, column('Категорія'), rows, 1).setDataValidation(list);
+  Object.keys(FIELD_OPTIONS).forEach(name => {
+    books.getRange(2, column(name), rows, 1).setDataValidation(SpreadsheetApp.newDataValidation()
+      .requireValueInList(FIELD_OPTIONS[name], true)
+      .setAllowInvalid(true)
+      .build());
+  });
+  column('Видавництво');
 }
 
 // Номер книги → ID файлів фото по порядку (перше — обкладинка). Обхід папки повільний,
@@ -256,9 +336,7 @@ function testTelegram() {
 }
 
 function readCatalog_() {
-  const ss = SpreadsheetApp.openById(CATALOG_ID);
-  const sheet = CATALOG_SHEET ? ss.getSheetByName(CATALOG_SHEET) : ss.getSheets()[0];
-  const values = sheet.getDataRange().getValues();
+  const values = catalogSheet_(catalog_()).getDataRange().getValues();
   const head = values[0].map(h => String(h).trim());
   const col = name => head.indexOf(name);
   const c = {
@@ -266,6 +344,14 @@ function readCatalog_() {
     pages: col('Сторінки'), price: col('Ціна'), stock: col('К-сть'),
     // необов'язкова колонка; якщо її немає — книги без опису
     description: col('Опис'),
+  };
+  // необов'язкові колонки: назва в таблиці → поле книги. Порожні не передаємо — каталог і так великий
+  const optional = {
+    category: col('Категорія'), // одна категорія будь-якого рівня з аркуша «Категорії»
+    condition: col('Стан'),
+    binding: col('Обкладинка'),
+    language: col('Мова'),
+    publisher: col('Видавництво'),
   };
 
   return values.slice(1)
@@ -283,6 +369,10 @@ function readCatalog_() {
       // порожній опис не передаємо — каталог і так великий
       const description = c.description < 0 ? '' : String(r[c.description]).trim();
       if (description) book.description = description;
+      Object.keys(optional).forEach(key => {
+        const value = optional[key] < 0 ? '' : String(r[optional[key]]).trim();
+        if (value) book[key] = value;
+      });
       return book;
     })
     // книга без ціни (порожньо, 0 або текст) не продається — інакше була б безкоштовною

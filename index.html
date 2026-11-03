@@ -76,6 +76,7 @@
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   [hidden] { display: none !important; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   body {
     margin: 0;
     background: #2b2b2b;
@@ -169,7 +170,7 @@
   .sort-btn svg { flex: none; color: var(--muted); }
   .sort-btn .chev { transition: transform .2s; }
   .sort-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
-  .sort-menu {
+  .sort-menu, .filter-menu {
     position: absolute; right: 0; top: calc(100% + 8px); z-index: 20;
     min-width: 230px;
     list-style: none; margin: 0; padding: 6px;
@@ -182,6 +183,41 @@
     animation: pop .14s ease-out;
   }
   .sort-menu:focus { outline: none; }
+
+  /* Фільтри: категорія (одна, деревом), стан і обкладинка (у кожній групі можна відмітити кілька) */
+  .filter { position: relative; flex: none; }
+  .filter-btn .badge {
+    min-width: 19px; height: 19px; padding: 0 5px;
+    display: grid; place-items: center;
+    border-radius: 999px; background: var(--accent); color: var(--accent-ink);
+    font-size: 11.5px; font-weight: 600;
+  }
+  .filter-menu {
+    min-width: 250px; max-width: min(340px, calc(100vw - 32px)); padding: 8px 6px;
+    /* дерево категорій може бути довгим — меню гортається саме, сторінка під ним стоїть */
+    max-height: min(70vh, 560px); overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .filter-menu input[type="radio"] { width: 16px; height: 16px; }
+  .filter-menu fieldset { border: 0; margin: 0; padding: 0; }
+  .filter-menu fieldset + fieldset { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+  .filter-menu legend { padding: 6px 12px 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .filter-menu .check { padding: 8px 12px; border-radius: 10px; }
+  .filter-menu .check:hover { background: var(--accent-soft); }
+  .filter-menu .check .n { margin-left: auto; padding-left: 16px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .filter-menu .check.empty { opacity: .45; }
+
+  /* під пошуком: скільки книг знайдено і які фільтри ввімкнені — кожен знімається кліком */
+  .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 12px; }
+  .picked {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 8px 4px 12px;
+    border: 0; border-radius: 999px;
+    background: var(--accent); color: var(--accent-ink);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+  }
+  .picked span { font-size: 16px; line-height: 1; opacity: .7; }
+  .picked:hover span { opacity: 1; }
   @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } }
   .sort-menu li {
     display: flex; align-items: center; gap: 10px;
@@ -197,7 +233,7 @@
 
   .count {
     display: inline-block;
-    margin: 16px 0 12px; padding: 4px 12px;
+    padding: 4px 12px;
     border-radius: 999px;
     color: var(--muted); font-size: 13px; font-weight: 500;
   }
@@ -276,6 +312,15 @@
     container-type: inline-size;
   }
   .cover-title, .cover-author { display: none; }
+  /* стан уживаної книги — позначка в куті обкладинки на вітрині */
+  .cond {
+    position: absolute; top: 8px; left: 10px; z-index: 1;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(20, 21, 23, .78); color: #f4f4f2;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    font: 600 11px/1.3 Onest, system-ui, sans-serif;
+  }
   .skeleton .cover { box-shadow: none; background: var(--line); }
   .skeleton .cover::after { display: none; }
 
@@ -320,6 +365,8 @@
     opacity: .3;
   }
   .grid .cover-letter { display: none; }
+  /* з позначкою стану назва опускається, щоб не впиратися в неї */
+  .grid .cover.blank:has(.cond) { padding-top: 32%; }
   .grid .cover-title {
     display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
     font: 600 max(13px, 10cqi)/1.2 Literata, Georgia, serif;
@@ -342,7 +389,8 @@
     .sort-btn .label { display: none; }
     .list.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 8px; }
   }
-  .view-btn { flex: none; padding: 11px 13px; }
+  /* кругла, на всю висоту панелі, як сусідні кнопки (ті розтягуються своїми обгортками) */
+  .view-btn { flex: none; width: 46px; height: auto; align-self: stretch; justify-content: center; padding: 0; }
 
   .add {
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); cursor: pointer;
@@ -563,6 +611,13 @@
   .book h2 { font: 600 clamp(22px, 2.6vw, 28px)/1.2 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0 40px 10px 0; text-wrap: balance; }
   .book-by { margin: 0; color: var(--muted); font-size: 14px; }
   .book-by .author { color: var(--accent); font-weight: 500; }
+  .facts {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px;
+    margin: 18px 36px 0; font-size: 14px;
+  }
+  .facts dt { color: var(--muted); }
+  .facts dd { margin: 0; }
+  .facts:empty { display: none; }
   .desc { padding: 22px 36px 8px; font: 400 16px/1.7 Literata, Georgia, serif; max-width: 62ch; hyphens: auto; }
   .desc p { margin: 0 0 .9em; text-wrap: pretty; }
   .buy {
@@ -585,6 +640,7 @@
     .leaf-text { overflow: visible; }
     .leaf-head { padding: 24px 20px 0; }
     .desc { padding: 18px 20px 4px; font-size: 15.5px; }
+    .facts { margin: 16px 20px 0; }
     .buy { padding: 14px 20px 16px; }
     dialog.book > .x { background: var(--glass-strong); }
   }
@@ -614,7 +670,15 @@
   <div class="wrap">
     <div class="search">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-      <input id="search" type="search" placeholder="Пошук за назвою або автором" autocomplete="off">
+      <input id="search" type="search" placeholder="Назва, автор або видавництво" autocomplete="off">
+    </div>
+    <div class="filter" id="filter" hidden>
+      <button type="button" class="sort-btn filter-btn" id="filterBtn" aria-expanded="false" aria-controls="filterMenu" aria-label="Фільтри">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        <span class="label">Фільтри</span>
+        <span class="badge" id="filterBadge" hidden></span>
+      </button>
+      <div class="filter-menu" id="filterMenu" hidden></div>
     </div>
     <div class="sort">
       <button type="button" class="sort-btn" id="sortBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Сортування">
@@ -636,7 +700,10 @@
 </div>
 
 <main class="wrap">
-  <div class="count" id="count">&nbsp;</div>
+  <div class="summary">
+    <div class="count" id="count">&nbsp;</div>
+    <span id="picked" style="display:contents"></span>
+  </div>
   <ul class="list" id="list"></ul>
   <div class="state" id="state" hidden></div>
   <div class="more" id="more" aria-hidden="true" hidden></div>
@@ -733,6 +800,7 @@
         <h2 id="bookTitle"></h2>
         <p class="book-by" id="bookBy"></p>
       </div>
+      <dl class="facts" id="bookFacts"></dl>
       <div class="desc" id="bookDesc"></div>
       <div class="buy">
         <div><div class="price" id="bookPrice"></div><div class="stock" id="bookStock"></div></div>
@@ -801,8 +869,9 @@ async function init() {
     const res = await fetch(API_URL);
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
-    try { localStorage.setItem(BOOKS_KEY, JSON.stringify(data.books)); } catch {}
-    setBooks(data.books, !!cached);
+    const catalog = { books: data.books, categories: data.categories || [] };
+    try { localStorage.setItem(BOOKS_KEY, JSON.stringify(catalog)); } catch {}
+    setBooks(catalog, !!cached);
   } catch (err) {
     console.error(err);
     if (cached) return;
@@ -812,12 +881,22 @@ async function init() {
 }
 
 function loadCachedBooks() {
-  try { return JSON.parse(localStorage.getItem(BOOKS_KEY)); } catch { return null; }
+  try {
+    const saved = JSON.parse(localStorage.getItem(BOOKS_KEY));
+    // раніше зберігався лише масив книг
+    if (Array.isArray(saved)) return { books: saved, categories: [] };
+    return saved?.books ? saved : null;
+  } catch { return null; }
 }
 
-function setBooks(list, keepShown) {
-  books = list;
+function setBooks(catalog, keepShown) {
+  books = catalog.books;
   byId = new Map(books.map(b => [b.id, b]));
+  buildCategories(catalog.categories);
+  readHashCategory();
+  // категорія з посилання чи з минулого показу могла спорожніти — тоді показуємо всі книги
+  const anyCategory = [...cats.values()].some(hasBooks);
+  if (!anyCategory || (cat === NONE ? !uncategorized : cat && !cats.get(cat)?.count)) cat = '';
   // прибрати з кошика те, чого вже немає або менше в наявності
   for (const id of Object.keys(cart)) {
     const b = byId.get(id);
@@ -825,17 +904,21 @@ function setBooks(list, keepShown) {
     else cart[id] = Math.min(cart[id], b.stock);
   }
   saveCart();
+  pruneFilters();
   applyFilter(keepShown);
   updateCartBar();
   openFromHash();
 }
 
+const searchWords = () => $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+function matchesSearch(b, words) {
+  const hay = [b.title, b.author, b.publisher].filter(Boolean).join(' ').toLowerCase();
+  return words.every(w => hay.includes(w));
+}
+
 function applyFilter(keepShown) {
-  const words = $('search').value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  filtered = books.filter(b => {
-    const hay = (b.title + ' ' + b.author).toLowerCase();
-    return words.every(w => hay.includes(w));
-  });
+  const words = searchWords();
+  filtered = books.filter(b => inCategory(b) && passFilters(b) && matchesSearch(b, words));
   const collator = new Intl.Collator('uk');
   const sorters = {
     // більший № у таблиці — пізніше додана книга
@@ -849,6 +932,160 @@ function applyFilter(keepShown) {
   filtered.sort(sorters[sortBy]);
   if (!keepShown) shown = PAGE;
   render();
+  renderFilters();
+}
+
+// ---------- Фільтри за станом і обкладинкою ----------
+// Значення беруться з самих книг; відомі йдуть у цьому порядку, решта — за абеткою після них.
+// У групі можна відмітити кілька (будь-яке з них), між групами — всі одразу
+const FACETS = [
+  { key: 'condition', title: 'Стан', order: ['Нова', 'Як нова', 'Добрий', 'Задовільний'] },
+  { key: 'binding', title: 'Обкладинка', order: ['Тверда', 'М’яка'] },
+];
+const picked = Object.fromEntries(FACETS.map(f => [f.key, new Set()]));
+
+// Нова книга — звичайна справа, позначаємо лише вживані
+const isUsed = b => !!b.condition && !/^нов/i.test(b.condition);
+
+function passFilters(b, skip) {
+  return FACETS.every(f => f.key === skip || !picked[f.key].size || picked[f.key].has(b[f.key]));
+}
+
+function facetValues(f) {
+  const collator = new Intl.Collator('uk');
+  const rank = v => { const i = f.order.indexOf(v); return i < 0 ? f.order.length : i; };
+  return [...new Set(books.map(b => b[f.key]).filter(Boolean))]
+    .sort((a, b) => rank(a) - rank(b) || collator.compare(a, b));
+}
+
+// усі книги з вибраним значенням продані — значення зникає з фільтра і перестає фільтрувати
+function pruneFilters() {
+  for (const f of FACETS) {
+    for (const v of picked[f.key]) if (!books.some(b => b[f.key] === v)) picked[f.key].delete(v);
+  }
+}
+
+function toggleFilter(key, value) {
+  if (picked[key].has(value)) picked[key].delete(value); else picked[key].add(value);
+  applyFilter();
+}
+
+function renderFilters() {
+  const any = categoryRoots().length > 0 || FACETS.some(f => books.some(b => b[f.key]));
+  $('filter').hidden = !any;
+  if (!any) closeFilters();
+
+  const total = (cat ? 1 : 0) + FACETS.reduce((s, f) => s + picked[f.key].size, 0);
+  $('filterBadge').hidden = !total;
+  $('filterBadge').textContent = total;
+  $('filterBtn').setAttribute('aria-label', total ? `Фільтри, увімкнено: ${total}` : 'Фільтри');
+
+  const pills = $('picked');
+  pills.textContent = '';
+  if (cat) {
+    const label = cat === NONE ? 'Без категорії' : cat;
+    const btn = el('button', 'picked', label);
+    btn.type = 'button';
+    btn.append(el('span', null, '×'));
+    // повний шлях — у підказці, щоб було видно, звідки ця категорія
+    if (cat !== NONE) btn.title = [...cats.get(cat).lineage].reverse().join(' › ');
+    btn.setAttribute('aria-label', `Прибрати фільтр «Категорія: ${label}»`);
+    btn.onclick = () => selectCat('');
+    pills.append(btn);
+  }
+  for (const f of FACETS) {
+    for (const v of picked[f.key]) {
+      const btn = el('button', 'picked', v);
+      btn.type = 'button';
+      btn.append(el('span', null, '×'));
+      btn.setAttribute('aria-label', `Прибрати фільтр «${f.title}: ${v}»`);
+      btn.onclick = () => toggleFilter(f.key, v);
+      pills.append(btn);
+    }
+  }
+  updateFilterMenu();
+}
+
+// Меню будуємо при відкритті, а після кожної зміни лише оновлюємо галочки й числа — фокус не стрибає
+function buildFilterMenu() {
+  const menu = $('filterMenu');
+  menu.textContent = '';
+  // категорія — одна, тож перемикачі; вкладені зсунуті вправо за рівнем
+  if (categoryRoots().length) {
+    const group = el('fieldset', 'cat-tree');
+    group.append(el('legend', null, 'Категорія'));
+    for (const row of categoryRows()) {
+      const label = el('label', 'check');
+      label.style.paddingLeft = 12 + row.depth * 18 + 'px';
+      const radio = el('input');
+      radio.type = 'radio';
+      radio.name = 'cat';
+      radio.value = row.name;
+      radio.onchange = () => selectCat(row.name);
+      label.append(radio, row.label, el('span', 'n'));
+      group.append(label);
+    }
+    menu.append(group);
+  }
+  for (const f of FACETS) {
+    const values = facetValues(f);
+    if (!values.length) continue;
+    const group = el('fieldset');
+    group.append(el('legend', null, f.title));
+    for (const v of values) {
+      const label = el('label', 'check');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.dataset.key = f.key;
+      box.dataset.value = v;
+      box.onchange = () => toggleFilter(f.key, v);
+      label.append(box, v, el('span', 'n'));
+      group.append(label);
+    }
+    menu.append(group);
+  }
+  updateFilterMenu();
+}
+
+// числа — скільки книг буде, якщо відмітити значення, з урахуванням категорії, пошуку та іншої групи
+function updateFilterMenu() {
+  const menu = $('filterMenu');
+  if (menu.hidden) return;
+  const words = searchWords();
+  // категорії рахуємо з урахуванням пошуку й решти фільтрів, але без самої категорії
+  const searched = books.filter(b => matchesSearch(b, words));
+  const forCats = searched.filter(b => passFilters(b));
+  for (const radio of menu.querySelectorAll('input[name="cat"]')) {
+    const name = radio.value;
+    const n = !name ? forCats.length
+      : name === NONE ? forCats.filter(b => !b.category).length
+      : forCats.filter(b => b.category && cats.get(b.category).lineage.includes(name)).length;
+    radio.checked = name === cat;
+    radio.parentElement.querySelector('.n').textContent = n;
+    radio.parentElement.classList.toggle('empty', !n && !radio.checked);
+  }
+  const base = searched.filter(inCategory);
+  for (const box of menu.querySelectorAll('input[type="checkbox"]')) {
+    const { key, value } = box.dataset;
+    const n = base.filter(b => b[key] === value && passFilters(b, key)).length;
+    box.checked = picked[key].has(value);
+    box.parentElement.querySelector('.n').textContent = n;
+    box.parentElement.classList.toggle('empty', !n && !box.checked);
+  }
+}
+
+function openFilters() {
+  const menu = $('filterMenu');
+  menu.hidden = false;
+  $('filterBtn').setAttribute('aria-expanded', 'true');
+  buildFilterMenu();
+  // не далі за нижній край вікна: далі меню гортається саме
+  menu.style.maxHeight = Math.max(240, innerHeight - menu.getBoundingClientRect().top - 16) + 'px';
+  menu.querySelector('input')?.focus();
+}
+function closeFilters() {
+  $('filterMenu').hidden = true;
+  $('filterBtn').setAttribute('aria-expanded', 'false');
 }
 
 function render() {
@@ -859,7 +1096,9 @@ function render() {
   list.append(frag);
 
   $('count').textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
-  showState(filtered.length ? '' : 'Нічого не знайдено. Спробуйте інший запит.');
+  showState(filtered.length ? '' : cat
+    ? 'У цій категорії нічого не знайдено. Спробуйте інший запит або виберіть «Усі книги».'
+    : 'Нічого не знайдено. Спробуйте інший запит.');
   $('more').hidden = shown >= filtered.length;
 }
 
@@ -871,6 +1110,86 @@ function loadMore() {
   shown += PAGE;
   $('list').append(frag);
   $('more').hidden = shown >= filtered.length;
+}
+
+// ---------- Категорії ----------
+// Дерево з аркуша «Категорії»: кожна знає батьківську, дочірні (у порядку аркуша),
+// свій шлях угору до верхнього рівня і скільки книг у ній разом з усіма вкладеними
+const NONE = '\u0000none'; // «Без категорії»
+let cats = new Map();
+let uncategorized = 0;
+let cat = ''; // вибрана категорія; '' — усі книги
+
+function buildCategories(list) {
+  cats = new Map();
+  const add = (name, parent) => cats.set(name, { name, parent, children: [], count: 0, lineage: [] });
+  for (const c of list || []) {
+    const name = String(c.name || '').trim();
+    if (name && !cats.has(name)) add(name, String(c.parent || '').trim());
+  }
+  // категорія є в книзі, але її немає на аркуші — показуємо її на верхньому рівні, щоб помилку було видно
+  for (const b of books) if (b.category && !cats.has(b.category)) add(b.category, '');
+  for (const n of cats.values()) if (n.parent === n.name || !cats.has(n.parent)) n.parent = '';
+  for (const n of cats.values()) if (n.parent) cats.get(n.parent).children.push(n);
+  // шлях від категорії вгору; захист від кола, якщо в аркуші дві категорії вказали одна на одну
+  for (const n of cats.values()) {
+    for (let p = n; p && !n.lineage.includes(p.name); p = cats.get(p.parent)) n.lineage.push(p.name);
+  }
+  uncategorized = 0;
+  for (const b of books) {
+    if (!b.category) { uncategorized++; continue; }
+    for (const name of cats.get(b.category).lineage) cats.get(name).count++;
+  }
+}
+
+function inCategory(b) {
+  if (!cat) return true;
+  if (cat === NONE) return !b.category;
+  return !!b.category && cats.get(b.category).lineage.includes(cat);
+}
+
+const hasBooks = n => n.count > 0;
+
+function selectCat(name) {
+  cat = name;
+  history.replaceState(null, '', location.pathname + location.search + catHash());
+  applyFilter();
+  // у меню розгортається гілка нової категорії — перебудовуємо його й лишаємо фокус на вибраній
+  if (!$('filterMenu').hidden) {
+    buildFilterMenu();
+    [...$('filterMenu').querySelectorAll('input[name="cat"]')].find(r => r.value === name)?.focus();
+  }
+}
+
+function catHash() {
+  if (!cat) return '';
+  return '#cat=' + (cat === NONE ? 'none' : encodeURIComponent(cat));
+}
+
+// #cat=Богослов'я в адресі відкриває категорію після завантаження каталогу. Читаємо щоразу:
+// збережений у браузері каталог може ще не знати категорії, а свіжий від Google — уже знає.
+// Адреса завжди відповідає вибору (selectCat її оновлює), тож чужого вибору це не перебʼє
+function readHashCategory() {
+  const m = location.hash.match(/^#cat=(.+)$/);
+  if (m) cat = m[1] === 'none' ? NONE : decodeURIComponent(m[1]);
+}
+
+const categoryRoots = () => [...cats.values()].filter(n => !n.parent && hasBooks(n));
+
+// Рядки дерева для меню фільтрів: верхній рівень видно завжди, а вкладені — лише вздовж гілки
+// вибраної категорії (її предки, сусіди на кожному рівні та її власні підкатегорії)
+function categoryRows() {
+  const open = new Set(cats.get(cat)?.lineage || []);
+  const rows = [{ name: '', label: 'Усі книги', depth: 0 }];
+  const walk = (list, depth) => {
+    for (const n of list.filter(hasBooks)) {
+      rows.push({ name: n.name, label: n.name, depth });
+      if (open.has(n.name)) walk(n.children, depth + 1);
+    }
+  };
+  walk(categoryRoots(), 0);
+  if (uncategorized) rows.push({ name: NONE, label: 'Без категорії', depth: 0 });
+  return rows;
 }
 
 function plural(n, one, few, many) {
@@ -896,8 +1215,12 @@ function bookRow(b) {
   if (b.author) sub.append(el('span', 'author', b.author));
   // одне фото вже видно на мініатюрі; підпис лишаємо, лише коли є що гортати
   const photos = b.photos?.length > 1 && b.photos.length + ' фото';
-  const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', photos].filter(Boolean).join(' · ');
+  // стан уживаної книги: у списку — у підписі, на вітрині — позначкою на обкладинці
+  const cond = view === 'list' && isUsed(b) && 'стан: ' + b.condition.toLowerCase();
+  const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', cond, photos].filter(Boolean).join(' · ');
   if (meta) sub.append((b.author ? ' · ' : '') + meta);
+  // позначка на обкладинці схована від читачів екрана разом з обкладинкою — дублюємо її для них
+  if (view === 'grid' && isUsed(b)) sub.append(el('span', 'sr-only', `, стан: ${b.condition}`));
   const title = el('a', 'title', b.title);
   title.href = '#book-' + encodeURIComponent(b.id);
   title.onclick = e => { e.preventDefault(); openBook(b); };
@@ -930,9 +1253,12 @@ const FILL_TOLERANCE = 0.12;
 function bookCover(b) {
   const box = el('div', 'cover');
   box.setAttribute('aria-hidden', 'true');
+  const badge = () => {
+    if (view === 'grid' && isUsed(b)) box.append(el('span', 'cond', b.condition));
+  };
   const blank = () => {
     const [cloth, stamp] = clothOf(b.id);
-    box.classList.add('blank');
+    box.className = 'cover blank';
     box.style.setProperty('--cloth', cloth);
     box.style.setProperty('--stamp', stamp);
     box.replaceChildren(
@@ -940,6 +1266,7 @@ function bookCover(b) {
       el('span', 'cover-title', b.title),
       el('span', 'cover-author', b.author || ''),
     );
+    badge();
   };
   const id = b.photos?.[0];
   if (!id) { blank(); return box; }
@@ -964,6 +1291,7 @@ function bookCover(b) {
   };
   box.classList.add('photo');
   box.append(layer('cover-bg'), front);
+  badge();
   return box;
 }
 
@@ -1076,6 +1404,11 @@ function openBook(b) {
   // абзаци опису — за переносами рядків у клітинці таблиці
   const desc = $('bookDesc');
   desc.textContent = '';
+  const facts = $('bookFacts');
+  facts.textContent = '';
+  for (const [label, value] of [
+    ['Видавництво', b.publisher], ['Мова', b.language], ['Обкладинка', b.binding], ['Стан', b.condition],
+  ]) if (value) facts.append(el('dt', null, label), el('dd', null, value));
   for (const text of (b.description || '').split(/\n+/).map(s => s.trim()).filter(Boolean)) {
     desc.append(el('p', null, text));
   }
@@ -1538,6 +1871,14 @@ sortMenu.addEventListener('keydown', e => {
 });
 document.addEventListener('click', e => {
   if (!sortMenu.hidden && !e.target.closest('.sort')) closeSort();
+  if (!$('filterMenu').hidden && !e.target.closest('.filter')) closeFilters();
+});
+
+$('filterBtn').addEventListener('click', () => $('filterMenu').hidden ? openFilters() : closeFilters());
+$('filterMenu').addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  closeFilters();
+  $('filterBtn').focus();
 });
 
 // Вигляд каталогу: вітрина з обкладинками або компактний список. Кнопка показує той, на який перемкне
@@ -1587,7 +1928,7 @@ $('bookNext').addEventListener('click', () => showPhoto(shelf.index + 1));
 // клік по затемненому тлу закриває картку
 bookDlg.addEventListener('click', e => { if (e.target === bookDlg) bookDlg.close(); });
 bookDlg.addEventListener('close', () => {
-  history.replaceState(null, '', location.pathname + location.search);
+  history.replaceState(null, '', location.pathname + location.search + catHash());
   if (shelf.book) refreshRow(shelf.book.id);
 });
 bookDlg.addEventListener('keydown', e => {
