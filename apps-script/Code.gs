@@ -28,6 +28,9 @@ const ITEMS_SHEET = 'Позиції';
 
 // Захист від спаму: скільки різних книг можна в одному замовленні
 const MAX_ITEMS = 100;
+// Повтор того самого замовлення (той самий телефон і ті самі книги в тій самій кількості) протягом цього часу
+// не записується вдруге: покупець отримує номер першого. Буває, коли відповідь загубилась і людина натиснула ще раз
+const DUPLICATE_WINDOW_SECONDS = 600;
 
 const ORDER_HEADERS = [
   'Дата', '№ замовлення', 'ПІБ', 'Телефон', 'Email',
@@ -276,6 +279,11 @@ function doPost(e) {
     if (problems.length) return json_({ ok: false, error: problems.join('\n') });
     if (!lines.length) return json_({ ok: false, error: 'Кошик порожній.' });
 
+    // те саме замовлення вже записане щойно — відповідаємо так само, як тоді, і нічого не дублюємо
+    const repeatKey = repeatKey_(customer.phone, lines);
+    const earlier = CacheService.getScriptCache().get(repeatKey);
+    if (earlier) return json_(Object.assign({ ok: true }, JSON.parse(earlier)));
+
     const total = lines.reduce((s, l) => s + l.sum, 0);
     const now = new Date();
     const orderId = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMdd-HHmmss') +
@@ -315,6 +323,9 @@ function doPost(e) {
       `Разом: ${pcs} шт., ${total} грн`,
     ].filter(l => l !== null).join('\n'));
 
+    try {
+      CacheService.getScriptCache().put(repeatKey, JSON.stringify({ orderId, total }), DUPLICATE_WINDOW_SECONDS);
+    } catch (err) { console.error(err); } // кеш недоступний — замовлення однаково записане
     return json_({ ok: true, orderId, total });
   } catch (err) {
     console.error(err);
@@ -483,6 +494,15 @@ function address_(d) {
     case 'ukrposhta': return `${v('city')}, індекс ${v('zip')}`;
     default: return '';
   }
+}
+
+// Ключ «того самого замовлення»: останні 9 цифр телефону (067… і +38067… — один номер) і книги з кількістю.
+// Хеш — бо ключ кешу Apps Script не довший за 250 знаків
+function repeatKey_(phone, lines) {
+  const digits = str_(phone).replace(/\D/g, '').slice(-9);
+  const items = lines.map(l => `${l.book.id}x${l.qty}`).sort().join(',');
+  const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, digits + '|' + items, Utilities.Charset.UTF_8);
+  return 'order:' + Utilities.base64EncodeWebSafe(hash);
 }
 
 function phoneOk_(phone) {
