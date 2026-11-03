@@ -250,15 +250,70 @@
     border-radius: inherit;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08);
   }
-  /* без фото — чиста обкладинка з першою літерою назви */
+  /* без фото — тканинна палітурка: у списку перша літера, на вітрині назва й автор у тисненій рамці */
   .cover.blank {
     display: grid; place-items: center;
-    background: color-mix(in srgb, var(--menu) 70%, transparent);
-    color: var(--muted);
+    background: var(--cloth, #45484d);
+    color: var(--stamp, #e4e3de);
     font: 600 22px/1 Literata, Georgia, serif;
+    container-type: inline-size;
   }
+  .cover-title, .cover-author { display: none; }
   .skeleton .cover { box-shadow: none; background: var(--line); }
   .skeleton .cover::after { display: none; }
+
+  /* Вітрина: книги стоять обкладинкою до покупця на тій самій скляній полиці */
+  .list.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+    gap: 8px;
+    padding: 14px;
+  }
+  .grid .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto 1fr auto;
+    align-items: start;
+    gap: 0 8px;
+    padding: 10px 10px 12px;
+    border-bottom: 0;
+    border-radius: 14px;
+  }
+  .grid .row.in-cart { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .grid .row .cover {
+    grid-column: 1 / -1; grid-row: auto; align-self: auto;
+    width: 100%; height: auto; aspect-ratio: 3 / 4;
+    margin-bottom: 12px;
+    border-radius: 3px 6px 6px 3px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 14px 26px -10px rgba(0, 0, 0, .45);
+  }
+  .grid .row .info { grid-column: 1 / -1; margin-bottom: 10px; }
+  .grid .row .title { font-size: 15px; }
+  .grid .byline { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .grid .pricebox { display: block; text-align: left; align-self: end; }
+  .grid .ctrl { align-self: end; }
+
+  .grid .cover.blank {
+    display: flex; flex-direction: column; justify-content: space-between; align-items: center;
+    padding: 20% 13% 12%;
+    text-align: center;
+  }
+  .grid .cover.blank::before {
+    content: ""; position: absolute; inset: 7px 7px 7px 10px;
+    border: 1px solid currentColor; border-radius: 2px;
+    opacity: .3;
+  }
+  .grid .cover-letter { display: none; }
+  .grid .cover-title {
+    display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden;
+    font: 600 max(13px, 10cqi)/1.2 Literata, Georgia, serif;
+    text-wrap: balance; overflow-wrap: break-word;
+  }
+  .grid .cover-author {
+    display: block;
+    font: 500 max(10.5px, 6.4cqi)/1.3 Onest, system-ui, sans-serif;
+    opacity: .78;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  }
 
   @media (max-width: 600px) {
     .row { grid-template-columns: 48px minmax(0, 1fr) auto; gap: 6px 14px; padding: 12px 16px; }
@@ -268,7 +323,9 @@
     .row .title { font-size: 15.5px; }
     .sort-btn { padding: 11px 14px; }
     .sort-btn .label { display: none; }
+    .list.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 8px; }
   }
+  .view-btn { flex: none; padding: 11px 13px; }
 
   .add {
     border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); cursor: pointer;
@@ -557,6 +614,7 @@
         <li role="option" data-value="year-desc">Спочатку новіші</li>
       </ul>
     </div>
+    <button type="button" class="sort-btn view-btn" id="viewBtn"></button>
   </div>
 </div>
 
@@ -685,6 +743,12 @@ let filtered = [];
 let shown = PAGE;
 let cart = loadCart();
 let sortBy = 'newest';
+const VIEW_KEY = 'lib_store_view';
+let view = loadView();
+
+function loadView() {
+  try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
+}
 
 function loadCart() {
   try { return JSON.parse(localStorage.getItem(CART_KEY)) || {}; } catch { return {}; }
@@ -830,13 +894,30 @@ function bookRow(b) {
   return li;
 }
 
-// Перше фото книги як обкладинка; немає фото або воно не відкрилося — чиста обкладинка з літерою
+// Відтінки тканинних палітурок: [тканина, тиснення]. Книга завжди отримує той самий
+const CLOTHS = [
+  ['#2c2d30', '#d9d8d3'],
+  ['#45484d', '#e4e3de'],
+  ['#8a8c8f', '#f4f4f2'],
+  ['#e6e5e0', '#3a3b3e'],
+  ['#cfcdc6', '#2c2d30'],
+];
+const clothOf = id => CLOTHS[[...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % CLOTHS.length];
+
+// Перше фото книги як обкладинка; немає фото або воно не відкрилося — тканинна палітурка
 function bookCover(b) {
   const box = el('div', 'cover');
   box.setAttribute('aria-hidden', 'true');
   const blank = () => {
+    const [cloth, stamp] = clothOf(b.id);
     box.classList.add('blank');
-    box.textContent = (b.title || '').trim().charAt(0).toUpperCase();
+    box.style.setProperty('--cloth', cloth);
+    box.style.setProperty('--stamp', stamp);
+    box.replaceChildren(
+      el('span', 'cover-letter', (b.title || '').trim().charAt(0).toUpperCase()),
+      el('span', 'cover-title', b.title),
+      el('span', 'cover-author', b.author || ''),
+    );
   };
   const id = b.photos?.[0];
   if (!id) { blank(); return box; }
@@ -846,8 +927,8 @@ function bookCover(b) {
   img.decoding = 'async';
   img.referrerPolicy = 'no-referrer';
   img.onerror = blank;
-  // ×3 від ширини мініатюри — чітко й на екранах з високою щільністю
-  img.src = photoUrl(id, 150);
+  // з запасом на екрани з високою щільністю: 48px у списку, до ~200px на вітрині
+  img.src = photoUrl(id, view === 'grid' ? 480 : 150);
   box.append(img);
   return box;
 }
@@ -1424,6 +1505,25 @@ sortMenu.addEventListener('keydown', e => {
 document.addEventListener('click', e => {
   if (!sortMenu.hidden && !e.target.closest('.sort')) closeSort();
 });
+
+// Вигляд каталогу: вітрина з обкладинками або компактний список. Кнопка показує той, на який перемкне
+const ICON_GRID = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="3.5" width="6.5" height="8" rx="1"/><rect x="13.5" y="3.5" width="6.5" height="8" rx="1"/><rect x="4" y="13.5" width="6.5" height="8" rx="1"/><rect x="13.5" y="13.5" width="6.5" height="8" rx="1"/></svg>';
+const ICON_LIST = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="4" height="5.5" rx=".8"/><rect x="3.5" y="14.5" width="4" height="5.5" rx=".8"/><path d="M11 6.75h9.5M11 17.25h9.5"/></svg>';
+function applyView() {
+  const grid = view === 'grid';
+  $('list').classList.toggle('grid', grid);
+  const btn = $('viewBtn');
+  btn.innerHTML = grid ? ICON_LIST : ICON_GRID;
+  btn.title = grid ? 'Показати списком' : 'Показати обкладинками';
+  btn.setAttribute('aria-label', btn.title);
+}
+$('viewBtn').addEventListener('click', () => {
+  view = view === 'grid' ? 'list' : 'grid';
+  try { localStorage.setItem(VIEW_KEY, view); } catch {}
+  applyView();
+  if (books.length) render();
+});
+applyView();
 
 // Нескінченна прокрутка: коли до кінця списку лишається ~2 екрани, дописуємо ще книги
 const moreObserver = new IntersectionObserver(entries => {
