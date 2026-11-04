@@ -54,6 +54,7 @@ const DELIVERY = {
   np_locker: { label: 'Нова пошта, поштомат', required: ['city', 'warehouse'] },
   np_courier: { label: 'Нова пошта, кур’єр', required: ['city', 'street', 'house'] },
   ukrposhta: { label: 'Укрпошта', required: ['city', 'zip'] },
+  meest: { label: 'Meest Пошта', required: ['city', 'branch'] },
   pickup: { label: 'Самовивіз', required: [] },
 };
 const PAYMENTS = { cod: 'При отриманні', prepay: 'Передоплата на картку' };
@@ -670,6 +671,7 @@ function address_(d) {
     case 'np_locker': return `${v('city')}, ${v('warehouse')}`;
     case 'np_courier': return [v('city'), v('street'), `буд. ${v('house')}`, v('flat') && `кв. ${v('flat')}`].filter(Boolean).join(', ');
     case 'ukrposhta': return `${v('city')}, індекс ${v('zip')}`;
+    case 'meest': return `${v('city')}, відділення/поштомат № ${v('branch').replace(/^№\s*/, '')}`;
     default: return '';
   }
 }

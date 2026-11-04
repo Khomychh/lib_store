@@ -9,7 +9,7 @@
 <title>КРАМНИЦЯ Оленки Шевчук — книги з доставкою по Україні</title>
 <meta name="author" content="Ivan Khomych">
 <!-- Опис — те, що Google показує під назвою сторінки. Назва магазину — у заголовку шапки (h1 з класом brand) -->
-<meta name="description" content="Книжкова крамниця Оленки Шевчук: богословська, психологічна, дитяча й художня література — нові та вживані книги. Доставка Новою поштою й Укрпоштою по Україні.">
+<meta name="description" content="Книжкова крамниця Оленки Шевчук: богословська, психологічна, дитяча й художня література — нові та вживані книги. Доставка Новою поштою, Укрпоштою й Meest по Україні.">
 <!-- seo: сюди збирач (scripts/build.mjs) вставляє адресу сторінки, прев'ю для месенджерів і розмітку для Google.
      Домен береться з файлу CNAME, назва — із заголовка шапки, опис — з meta description вище -->
 
@@ -134,10 +134,11 @@
         <label class="choice"><input type="radio" name="method" value="np_locker"><span><b>Нова пошта</b><small>у поштомат</small></span></label>
         <label class="choice"><input type="radio" name="method" value="np_courier"><span><b>Нова пошта</b><small>кур’єром на адресу</small></span></label>
         <label class="choice"><input type="radio" name="method" value="ukrposhta"><span><b>Укрпошта</b><small>у відділення</small></span></label>
+        <label class="choice"><input type="radio" name="method" value="meest"><span><b>Meest Пошта</b><small>у відділення чи поштомат</small></span></label>
         <label class="choice"><input type="radio" name="method" value="pickup"><span><b>Самовивіз</b><small>заберу сам(а)</small></span></label>
       </div>
       <div class="form">
-        <label class="full" data-for="np_branch np_locker np_courier ukrposhta">Населений пункт *
+        <label class="full" data-for="np_branch np_locker np_courier ukrposhta meest">Населений пункт *
           <div class="combo"><input name="city" autocomplete="off" maxlength="120" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-describedby="err-city"><ul class="combo-list" role="listbox" hidden></ul></div>
           <span class="err" id="err-city"></span></label>
         <label class="full" data-for="np_branch np_locker"><span id="whLabel">Відділення *</span>
@@ -147,6 +148,7 @@
         <label data-for="np_courier" hidden>Будинок *<input name="house" maxlength="20" aria-describedby="err-house"><span class="err" id="err-house"></span></label>
         <label data-for="np_courier" hidden><span>Квартира <span class="hint">(якщо є)</span></span><input name="flat" maxlength="20"></label>
         <label data-for="ukrposhta" hidden>Індекс відділення *<input name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="79000" aria-describedby="err-zip"><span class="err" id="err-zip"></span><a class="help-link" href="https://offices.ukrposhta.ua/" target="_blank" rel="noopener">Дізнатися індекс відділення ↗</a></label>
+        <label class="full" data-for="meest" hidden>Номер відділення чи поштомату *<input name="branch" maxlength="20" placeholder="Наприклад, 12" aria-describedby="err-branch"><span class="err" id="err-branch"></span><a class="help-link" href="https://meestposhta.com.ua/branches" target="_blank" rel="noopener">Знайти відділення чи поштомат Meest ↗</a></label>
         <p class="note full" data-for="pickup" hidden>Ми зв’яжемося з вами, щоб домовитися про місце і час.</p>
         <label class="check full"><input type="checkbox" name="otherRecipient"> Отримувати буде інша людина</label>
         <label data-recipient hidden>Прізвище та ім’я отримувача *<input name="rname" maxlength="100" aria-describedby="err-rname"><span class="err" id="err-rname"></span></label>

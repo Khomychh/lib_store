@@ -10,6 +10,8 @@ const METHODS = {
   np_locker:  { fields: ['city', 'warehouse'], np: true, wh: 'Поштомат', cats: ['Postomat'] },
   np_courier: { fields: ['city', 'street', 'house', 'flat'], np: true },
   ukrposhta:  { fields: ['city', 'zip'] },
+  // довідника відділень Meest з документованим API немає — номер вписують самі (є посилання на карту Meest)
+  meest:      { fields: ['city', 'branch'] },
   pickup:     { fields: [] },
 };
 const method = () => F.method.value;
@@ -212,6 +214,7 @@ const RULES = {
   street: v => v ? '' : 'Вкажіть вулицю',
   house: v => v ? '' : 'Вкажіть номер будинку',
   zip: v => /^\d{5}$/.test(v) ? '' : 'Індекс — 5 цифр, наприклад 79000',
+  branch: v => !v ? 'Вкажіть номер відділення чи поштомату' : /\d/.test(v) ? '' : 'Вкажіть номер, наприклад 12',
   rname: v => nameRule(v, 'Вкажіть прізвище та ім’я отримувача'),
   rphone: v => phoneRule(v, 'Вкажіть телефон отримувача'),
 };
