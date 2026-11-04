@@ -535,3 +535,227 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+// ───────────────────────── Форма «Книга» ─────────────────────────
+// Вікно для додавання й редагування книг замість ручного заповнення таблиці: меню «Каталог» у таблиці
+// замовлень. Сама форма — файл BookForm.html у цьому ж проєкті. Сайту ця частина не потрібна,
+// тож після її змін нова версія розгортання не обов'язкова.
+
+// Поле форми → заголовок колонки каталогу
+const FORM_FIELDS = {
+  id: '№', title: 'Назва', author: 'Автор', year: 'Рік', pages: 'Сторінки',
+  price: 'Ціна', salePrice: 'Акційна ціна', stock: 'К-сть',
+  category: 'Категорія', condition: 'Стан', binding: 'Обкладинка', language: 'Мова',
+  publisher: 'Видавництво', isbn: 'ISBN', description: 'Опис',
+};
+const FORM_NUMBERS = ['year', 'pages', 'price', 'salePrice', 'stock'];
+
+// Простий тригер: додає меню щоразу, коли відкривають таблицю замовлень
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Каталог')
+    .addItem('Додати / змінити книгу', 'showBookForm')
+    .addToUi();
+}
+
+function showBookForm() {
+  const html = HtmlService.createHtmlOutputFromFile('BookForm').setWidth(780).setHeight(720);
+  // немодальне — таблицю поруч можна гортати
+  SpreadsheetApp.getUi().showModelessDialog(html, 'Книга');
+}
+
+// Каталог для форми: заголовки, рядки і номер колонки за назвою
+function formSheet_() {
+  const sheet = catalogSheet_(catalog_());
+  const values = sheet.getDataRange().getValues();
+  const head = values[0].map(h => String(h).trim());
+  return { sheet, values, head, col: name => head.indexOf(name) };
+}
+
+function formNextId_(values, idCol) {
+  return values.slice(1).reduce((max, r) => {
+    const s = String(r[idCol]).trim();
+    return /^\d+$/.test(s) ? Math.max(max, Number(s)) : max;
+  }, 0) + 1;
+}
+
+// Різні непорожні значення колонки, за алфавітом
+function formDistinct_(values, col) {
+  if (col < 0) return [];
+  const seen = {};
+  values.slice(1).forEach(r => {
+    const v = String(r[col]).trim();
+    if (v) seen[v] = true;
+  });
+  return Object.keys(seen).sort((a, b) => a.localeCompare(b, 'uk'));
+}
+
+// Усе, що потрібно формі при відкритті: книги для пошуку й перевірки дублів, списки, наступний №
+function formInit() {
+  const { values, col } = formSheet_();
+  const id = col('№'), title = col('Назва'), author = col('Автор'), stock = col('К-сть');
+  const books = values.slice(1)
+    .filter(r => String(r[title]).trim())
+    .map(r => [String(r[id]).trim(), author < 0 ? '' : String(r[author]).trim(), String(r[title]).trim(),
+      stock < 0 ? '' : String(r[stock]).trim()]);
+  const merge = (name) => {
+    const extra = formDistinct_(values, col(name))
+      .filter(v => !FIELD_OPTIONS[name].some(o => o.toLowerCase() === v.toLowerCase()));
+    return FIELD_OPTIONS[name].concat(extra);
+  };
+  return {
+    books,
+    nextId: formNextId_(values, id),
+    categories: readCategories_(),
+    conditions: FIELD_OPTIONS['Стан'],
+    bindings: merge('Обкладинка'),
+    languages: merge('Мова'),
+    authors: formDistinct_(values, author),
+    publishers: formDistinct_(values, col('Видавництво')),
+    photos: Boolean(PHOTOS_FOLDER),
+  };
+}
+
+// Книга з таблиці як є (без перерахунку акцій тощо) — для редагування
+function formGetBook(id) {
+  const { values, col } = formSheet_();
+  const row = formFindRow_(values, col('№'), id);
+  if (row < 0) throw new Error(`Книги №${id} немає в каталозі`);
+  const book = {};
+  Object.keys(FORM_FIELDS).forEach(key => {
+    const c = col(FORM_FIELDS[key]);
+    book[key] = c < 0 ? '' : String(values[row][c]).trim();
+  });
+  book.photoCount = formPhotoNumbers_(book.id).length;
+  return book;
+}
+
+// Індекс рядка в values (0 — заголовки) або -1
+function formFindRow_(values, idCol, id) {
+  const key = String(id).trim().toLowerCase();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][idCol]).trim().toLowerCase() === key) return i;
+  }
+  return -1;
+}
+
+// Ті самі перевірки, що й у формі: браузеру не довіряємо. Повертає текст помилок або ''
+function formValidate_(b, categories) {
+  const errors = [];
+  const num = v => (v === '' ? null : Number(v));
+  if (!b.title) errors.push('Вкажіть назву.');
+  if (b.id && !/^[\p{L}\p{N}_-]+$/u.test(b.id)) errors.push('№: лише літери, цифри, дефіс.');
+  const price = num(b.price);
+  if (!(price > 0)) errors.push('Ціна — число більше 0.');
+  const stock = num(b.stock);
+  if (stock === null || !Number.isInteger(stock) || stock < 0) errors.push('К-сть — ціле число від 0.');
+  const sale = num(b.salePrice);
+  if (sale !== null && !(sale > 0 && sale < price)) errors.push('Акційна ціна має бути менша за ціну (або порожньо).');
+  ['year', 'pages'].forEach(k => {
+    if (b[k] && !/^\d+$/.test(b[k])) errors.push(`${FORM_FIELDS[k]} — лише цифри.`);
+  });
+  if (b.condition && FIELD_OPTIONS['Стан'].indexOf(b.condition) < 0) errors.push('Стан — зі списку.');
+  if (b.category && categories.length && !categories.some(c => c.name === b.category)) {
+    errors.push(`Категорії «${b.category}» немає на аркуші «${CATEGORIES_SHEET}».`);
+  }
+  return errors.join('\n');
+}
+
+// Зберігає книгу. isNew — новий рядок (№ не повинен повторюватись), інакше змінює рядок з цим №.
+// У наявному рядку пишемо лише змінені клітинки — решту колонок і формули не чіпаємо
+function formSaveBook(input, isNew) {
+  const b = {};
+  Object.keys(FORM_FIELDS).forEach(k => { b[k] = String(input[k] == null ? '' : input[k]).trim(); });
+  const error = formValidate_(b, readCategories_());
+  if (error) throw new Error(error);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const { sheet, values, head, col } = formSheet_();
+    const idCol = col('№');
+    if (idCol < 0) throw new Error('У каталозі немає колонки «№».');
+    let rowIndex;
+    if (isNew) {
+      if (!b.id) b.id = String(formNextId_(values, idCol));
+      if (formFindRow_(values, idCol, b.id) >= 0) {
+        throw new Error(`№${b.id} уже зайнятий іншою книгою. Відкрийте її або змініть номер.`);
+      }
+      rowIndex = sheet.getLastRow(); // наступний після останнього заповненого (values рахує з 0)
+    } else {
+      rowIndex = formFindRow_(values, idCol, b.id);
+      if (rowIndex < 0) throw new Error(`Книги №${b.id} немає в каталозі — можливо, її видалили.`);
+    }
+    const old = values[rowIndex] || [];
+    const row = rowIndex + 1;
+
+    Object.keys(FORM_FIELDS).forEach(key => {
+      const name = FORM_FIELDS[key];
+      const v = b[key];
+      let c = col(name);
+      if (c < 0) {
+        if (!v) return;
+        c = formAddColumn_(sheet, head, name);
+      }
+      if (String(old[c] == null ? '' : old[c]).trim() === v) return;
+      const cell = sheet.getRange(row, c + 1);
+      if (key === 'isbn') {
+        // текстом: інакше таблиця з'їсть нуль на початку ISBN-10
+        cell.setNumberFormat('@').setValue(v);
+      } else if (v && (FORM_NUMBERS.indexOf(key) >= 0 || (key === 'id' && /^\d+$/.test(v)))) {
+        cell.setValue(Number(v));
+      } else {
+        cell.setValue(/^[=+\-@]/.test(v) ? "'" + v : v);
+      }
+    });
+    SpreadsheetApp.flush();
+    return { id: b.id, row };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Дописує колонку в кінець каталогу; повертає її індекс (з 0)
+function formAddColumn_(sheet, head, name) {
+  head.push(name);
+  const col = head.length;
+  if (col > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), col - sheet.getMaxColumns());
+  sheet.getRange(1, col).setValue(name).setFontWeight('bold');
+  return col - 1;
+}
+
+// Порядкові номери наявних фото книги: 15.jpg → 1, 15-3.jpg → 3
+function formPhotoNumbers_(id) {
+  if (!PHOTOS_FOLDER || !id) return [];
+  const key = String(id).toLowerCase();
+  const numbers = [];
+  // пошук Диска за початком назви; точний збіг перевіряємо самі (щоб 150.jpg не зарахувався книзі 15)
+  const files = DriveApp.getFolderById(PHOTOS_FOLDER).searchFiles(`title contains '${String(id).replace(/'/g, '')}'`);
+  while (files.hasNext()) {
+    const f = files.next();
+    if (f.isTrashed() || !f.getMimeType().startsWith('image/')) continue;
+    const name = f.getName().replace(/\.[^.]*$/, '').trim().toLowerCase();
+    const m = name.match(/^(.+?)\s*-\s*(\d+)$/);
+    if ((m ? m[1] : name) === key) numbers.push(m ? Number(m[2]) : 1);
+  }
+  return numbers;
+}
+
+// Додає фото книги в папку з наступним вільним номером (перше — 15.jpg, далі 15-2.jpg…).
+// base64 — JPEG, уже зменшений у браузері
+function formAddPhoto(id, base64) {
+  if (!PHOTOS_FOLDER) throw new Error('Папка з фото не налаштована (PHOTOS_FOLDER).');
+  if (!/^[\p{L}\p{N}_-]+$/u.test(String(id))) throw new Error('Неправильний № книги.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const n = formPhotoNumbers_(id).reduce((max, x) => Math.max(max, x), 0) + 1;
+    const name = n === 1 ? `${id}.jpg` : `${id}-${n}.jpg`;
+    DriveApp.getFolderById(PHOTOS_FOLDER)
+      .createFile(Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', name));
+    // скидаємо кеш списку фото, щоб сайт побачив нове одразу, а не за 10 хвилин
+    try { CacheService.getScriptCache().remove('photos'); } catch (err) { console.error(err); }
+    return name;
+  } finally {
+    lock.releaseLock();
+  }
+}

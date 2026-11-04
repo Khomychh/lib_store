@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<!--
+  Форма «Книга» (меню «Каталог» у таблиці замовлень). Серверні функції — у Code.gs: formInit, formGetBook,
+  formSaveBook, formAddPhoto. Перевірки тут лише для зручності; остаточні — на сервері (formValidate_).
+-->
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { font: 13px/1.4 Arial, sans-serif; color: #202124; margin: 0; padding: 12px 16px 16px; }
+  .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .bar input { flex: 1; }
+  h2 { font-size: 15px; margin: 4px 0 10px; }
+  h2 small { font-weight: normal; color: #5f6368; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 12px; }
+  .grid .w2 { grid-column: span 2; }
+  .grid .w4 { grid-column: span 4; }
+  label { display: block; font-size: 12px; color: #5f6368; margin-bottom: 2px; }
+  label b { color: #d93025; font-weight: normal; }
+  input, select, textarea { width: 100%; font: inherit; padding: 5px 7px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
+  input[readonly] { background: #f1f3f4; color: #5f6368; }
+  textarea { min-height: 70px; resize: vertical; }
+  .bad { border-color: #d93025 !important; }
+  .hint { font-size: 11px; color: #5f6368; min-height: 14px; margin-top: 2px; }
+  .hint.err { color: #d93025; }
+  .hint.ok { color: #188038; }
+  .warn { background: #fef7e0; border: 1px solid #f9d77e; border-radius: 4px; padding: 6px 8px; margin: 8px 0 0; }
+  .warn a { color: #1a73e8; cursor: pointer; text-decoration: underline; }
+  .photos { margin-top: 10px; }
+  .thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .thumbs img { height: 70px; border-radius: 3px; border: 1px solid #dadce0; }
+  .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
+  button { font: inherit; padding: 6px 14px; border-radius: 4px; border: 1px solid #dadce0; background: #fff; cursor: pointer; }
+  button.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: bold; }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { white-space: pre-line; }
+  #status.err { color: #d93025; }
+  #status.ok { color: #188038; }
+  .loading { color: #5f6368; padding: 30px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div id="loading" class="loading">Завантажую каталог…</div>
+
+<div id="app" hidden>
+  <div class="bar">
+    <input id="search" list="bookList" placeholder="Знайти книгу: № або назва" autocomplete="off">
+    <button id="openBtn">Відкрити</button>
+    <button id="newBtn">Нова книга</button>
+  </div>
+  <datalist id="bookList"></datalist>
+  <datalist id="authorList"></datalist>
+  <datalist id="publisherList"></datalist>
+  <datalist id="bindingList"></datalist>
+  <datalist id="languageList"></datalist>
+
+  <h2 id="mode"></h2>
+
+  <form id="form" autocomplete="off">
+    <div class="grid">
+      <div><label>№</label><input name="id"><div class="hint" data-for="id"></div></div>
+      <div class="w2"><label>Назва <b>*</b></label><input name="title"><div class="hint" data-for="title"></div></div>
+      <div><label>Автор</label><input name="author" list="authorList"><div class="hint" data-for="author"></div></div>
+
+      <div><label>Ціна, грн <b>*</b></label><input name="price" inputmode="decimal"><div class="hint" data-for="price"></div></div>
+      <div><label>Акційна ціна</label><input name="salePrice" inputmode="decimal"><div class="hint" data-for="salePrice"></div></div>
+      <div><label>К-сть <b>*</b></label><input name="stock" inputmode="numeric"><div class="hint" data-for="stock"></div></div>
+      <div><label>Стан</label><select name="condition"></select><div class="hint" data-for="condition"></div></div>
+
+      <div class="w2"><label>Категорія</label><select name="category"></select><div class="hint" data-for="category"></div></div>
+      <div><label>Обкладинка</label><input name="binding" list="bindingList"><div class="hint" data-for="binding"></div></div>
+      <div><label>Мова</label><input name="language" list="languageList"><div class="hint" data-for="language"></div></div>
+
+      <div class="w2"><label>Видавництво</label><input name="publisher" list="publisherList"><div class="hint" data-for="publisher"></div></div>
+      <div><label>Рік</label><input name="year" inputmode="numeric"><div class="hint" data-for="year"></div></div>
+      <div><label>Сторінки</label><input name="pages" inputmode="numeric"><div class="hint" data-for="pages"></div></div>
+
+      <div class="w2"><label>ISBN</label><input name="isbn"><div class="hint" data-for="isbn"></div></div>
+      <div class="w2"></div>
+
+      <div class="w4"><label>Опис <small>(новий рядок — новий абзац)</small></label><textarea name="description"></textarea></div>
+    </div>
+
+    <div id="dupe" class="warn" hidden></div>
+
+    <div id="photoBox" class="photos" hidden>
+      <label>Фото <span id="photoInfo"></span></label>
+      <input id="photoInput" type="file" accept="image/*" multiple>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="primary" id="saveBtn">Зберегти</button>
+      <span id="status"></span>
+    </div>
+  </form>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const form = $('#form');
+const field = name => form.elements[name];
+const FIELDS = ['id', 'title', 'author', 'year', 'pages', 'price', 'salePrice', 'stock',
+  'category', 'condition', 'binding', 'language', 'publisher', 'isbn', 'description'];
+// після «Додати» ці поля лишаються: зручно вносити пачку книг одного розділу
+const STICKY = ['category', 'condition', 'binding', 'language'];
+
+let data = null;      // відповідь formInit
+let editing = null;   // № книги, яку редагуємо; null — нова
+let dirty = false;
+let photos = [];      // [{ base64, url }]
+let busy = false;
+
+// Виклик серверної функції як Promise
+function call(fn, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[fn](...args);
+  });
+}
+
+function setStatus(text, kind) {
+  const el = $('#status');
+  el.textContent = text || '';
+  el.className = kind || '';
+}
+
+function fillList(id, values) {
+  $(id).innerHTML = '';
+  values.forEach(v => { const o = document.createElement('option'); o.value = v; $(id).appendChild(o); });
+}
+
+function bookLabel(b) {
+  return `${b[0]} · ${b[1] ? b[1] + ' — ' : ''}${b[2]}`;
+}
+
+// ───── Списки ─────
+
+// Категорії деревом: дочірні під батьківською з відступом
+function fillCategories(extra) {
+  const sel = field('category');
+  sel.innerHTML = '<option value="">— без категорії —</option>';
+  const cats = data.categories;
+  const names = new Set(cats.map(c => c.name));
+  const children = {};
+  cats.forEach(c => {
+    const p = c.parent && names.has(c.parent) ? c.parent : '';
+    (children[p] = children[p] || []).push(c.name);
+  });
+  const walk = (parent, depth, seen) => (children[parent] || []).forEach(name => {
+    if (seen.has(name)) return; // захист від циклу в дереві
+    seen.add(name);
+    const o = document.createElement('option');
+    o.value = name;
+    o.textContent = '    '.repeat(depth) + name;
+    sel.appendChild(o);
+    walk(name, depth + 1, seen);
+  });
+  walk('', 0, new Set());
+  if (extra && !names.has(extra)) {
+    const o = document.createElement('option');
+    o.value = extra;
+    o.textContent = `${extra} (немає на аркуші «Категорії»)`;
+    sel.appendChild(o);
+  }
+}
+
+// extra — значення книги поза списком (старий запис): показуємо його, щоб збереження не стерло стан
+function fillConditions(extra) {
+  const sel = field('condition');
+  sel.innerHTML = '<option value="">— (нова) —</option>';
+  const list = data.conditions.concat(extra && data.conditions.indexOf(extra) < 0 ? [extra] : []);
+  list.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
+}
+
+// Якщо вписане значення відрізняється від наявного лише регістром чи пробілами — беремо наявне,
+// щоб у фільтрах сайту не з'являлись «тверда» й «Тверда» окремо
+const LISTS = { author: 'authors', publisher: 'publishers', binding: 'bindings', language: 'languages' };
+function normalize(name) {
+  const input = field(name);
+  const v = input.value.trim().replace(/\s+/g, ' ');
+  const key = v.toLowerCase();
+  const found = data[LISTS[name]].find(x => x.toLowerCase() === key);
+  input.value = found || v;
+  const hint = form.querySelector(`.hint[data-for="${name}"]`);
+  if (v && !found && (name === 'binding' || name === 'language')) {
+    hint.textContent = 'Нове значення — з’явиться у фільтрі окремим пунктом';
+    hint.className = 'hint';
+  } else if (v && !found && name === 'publisher') {
+    hint.textContent = 'Нове видавництво';
+    hint.className = 'hint';
+  } else {
+    hint.textContent = '';
+    hint.className = 'hint';
+  }
+}
+
+// ───── Перевірки ─────
+
+// ISBN → 13 цифр або null (як isbn13 у scripts/build.mjs)
+function isbn13(raw) {
+  const s = String(raw || '').toUpperCase().replace(/[^\dX]/g, '');
+  const check13 = d => (10 - [...d].reduce((sum, c, i) => sum + Number(c) * (i % 2 ? 3 : 1), 0) % 10) % 10;
+  if (/^\d{13}$/.test(s)) return check13(s.slice(0, 12)) === Number(s[12]) ? s : null;
+  if (/^\d{9}[\dX]$/.test(s)) {
+    const sum = [...s].reduce((acc, c, i) => acc + (c === 'X' ? 10 : Number(c)) * (10 - i), 0);
+    if (sum % 11) return null;
+    const d = '978' + s.slice(0, 9);
+    return d + check13(d);
+  }
+  return null;
+}
+
+function values() {
+  const v = {};
+  FIELDS.forEach(k => { v[k] = field(k).value.trim(); });
+  // кома в цінах — звична річ, таблиці потрібна крапка
+  ['price', 'salePrice'].forEach(k => { v[k] = v[k].replace(',', '.').replace(/\s/g, ''); });
+  return v;
+}
+
+// Повертає { поле: текст помилки }; попередження (не блокують) — окремо
+function check() {
+  const v = values();
+  const errors = {};
+  const warnings = {};
+  const num = s => (s === '' ? null : Number(s));
+  if (!v.title) errors.title = 'Обов’язкове поле';
+  if (v.id && !/^[\p{L}\p{N}_-]+$/u.test(v.id)) errors.id = 'Лише літери, цифри, дефіс';
+  if (!editing && v.id && data.books.some(b => b[0].toLowerCase() === v.id.toLowerCase())) {
+    errors.id = 'Цей № уже зайнятий';
+  }
+  const price = num(v.price);
+  if (!(price > 0)) errors.price = 'Число більше 0';
+  const stock = num(v.stock);
+  if (stock === null || !Number.isInteger(stock) || stock < 0) errors.stock = 'Ціле число від 0';
+  else if (stock === 0) warnings.stock = 'З К-сть 0 книга не показується на сайті';
+  const sale = num(v.salePrice);
+  if (sale !== null) {
+    if (!(sale > 0 && sale < price)) errors.salePrice = 'Менша за ціну або порожньо';
+    else warnings.salePrice = `Знижка ${Math.round((1 - sale / price) * 100)}%`;
+  }
+  if (v.year) {
+    if (!/^\d+$/.test(v.year)) errors.year = 'Лише цифри';
+    else if (Number(v.year) < 1450 || Number(v.year) > new Date().getFullYear() + 1) warnings.year = 'Перевірте рік';
+  }
+  if (v.pages && !/^\d+$/.test(v.pages)) errors.pages = 'Лише цифри';
+  if (v.isbn) {
+    if (isbn13(v.isbn)) warnings.isbn = '✓ ISBN правильний';
+    else warnings.isbn = 'ISBN з помилкою: перевірте цифри (зберегти можна, але в Google піде без коду)';
+  }
+  return { errors, warnings };
+}
+
+function showCheck() {
+  const { errors, warnings } = check();
+  ['id', 'title', 'price', 'salePrice', 'stock', 'year', 'pages', 'isbn'].forEach(k => {
+    const hint = form.querySelector(`.hint[data-for="${k}"]`);
+    const input = field(k);
+    const touched = input.dataset.touched || input.value;
+    const err = touched && errors[k];
+    input.classList.toggle('bad', Boolean(err));
+    if (err) { hint.textContent = errors[k]; hint.className = 'hint err'; }
+    else if (warnings[k]) {
+      hint.textContent = warnings[k];
+      hint.className = 'hint' + (warnings[k].startsWith('✓') ? ' ok' : k === 'isbn' ? ' err' : '');
+    } else if (!(k === 'id' && !editing)) { hint.textContent = ''; hint.className = 'hint'; }
+  });
+  showDupes();
+  return errors;
+}
+
+// Схожа книга вже є в каталозі? Частіше треба збільшити її К-сть, а не додавати другий рядок
+function showDupes() {
+  const box = $('#dupe');
+  const title = field('title').value.trim().toLowerCase();
+  if (editing || title.length < 3) { box.hidden = true; return; }
+  const author = field('author').value.trim().toLowerCase();
+  const same = data.books.filter(b => b[2].toLowerCase() === title && (!author || !b[1] || b[1].toLowerCase() === author));
+  if (!same.length) { box.hidden = true; return; }
+  box.innerHTML = '';
+  box.append('Така книга вже є: ');
+  same.slice(0, 5).forEach((b, i) => {
+    if (i) box.append(', ');
+    const a = document.createElement('a');
+    a.textContent = `№${b[0]}${b[3] !== '' ? ` (К-сть ${b[3]})` : ''}`;
+    a.onclick = () => openBook(b[0]);
+    box.appendChild(a);
+  });
+  box.append('. Якщо це той самий примірник — відкрийте її й збільште К-сть.');
+  box.hidden = false;
+}
+
+// ───── Режими ─────
+
+function setMode() {
+  field('id').readOnly = Boolean(editing);
+  const mode = $('#mode');
+  mode.textContent = editing ? 'Редагування ' : 'Нова книга';
+  if (editing) {
+    const small = document.createElement('small');
+    small.textContent = `№${editing} · № змінити не можна: за ним кошик, замовлення й фото`;
+    mode.appendChild(small);
+  }
+  $('#saveBtn').textContent = editing ? 'Зберегти зміни' : 'Додати книгу';
+  const idHint = form.querySelector('.hint[data-for="id"]');
+  if (!editing) { idHint.textContent = 'Наступний вільний'; idHint.className = 'hint'; }
+}
+
+function clearPhotos() {
+  photos = [];
+  $('#thumbs').innerHTML = '';
+  $('#photoInput').value = '';
+}
+
+function newBook(keepSticky) {
+  const keep = {};
+  if (keepSticky) STICKY.forEach(k => { keep[k] = field(k).value; });
+  form.reset();
+  FIELDS.forEach(k => { delete field(k).dataset.touched; field(k).classList.remove('bad'); });
+  form.querySelectorAll('.hint').forEach(h => { h.textContent = ''; h.className = 'hint'; });
+  editing = null;
+  fillCategories(keep.category);
+  fillConditions();
+  Object.keys(keep).forEach(k => { field(k).value = keep[k]; });
+  field('id').value = data.nextId;
+  field('stock').value = 1;
+  $('#photoInfo').textContent = '';
+  clearPhotos();
+  setMode();
+  showDupes();
+  dirty = false;
+  field('title').focus();
+}
+
+// Перед тим як відкрити іншу книгу — не втратити незбережене
+let confirmLeave = 0;
+function canLeave() {
+  if (!dirty || Date.now() - confirmLeave < 5000) return true;
+  confirmLeave = Date.now();
+  setStatus('Є незбережені зміни. Натисніть ще раз, щоб їх скинути.', 'err');
+  return false;
+}
+
+async function openBook(id) {
+  if (busy || !canLeave()) return;
+  busy = true;
+  setStatus('Відкриваю…');
+  try {
+    const book = await call('formGetBook', id);
+    form.reset();
+    FIELDS.forEach(k => { delete field(k).dataset.touched; });
+    editing = book.id;
+    fillCategories(book.category);
+    fillConditions(book.condition);
+    FIELDS.forEach(k => { field(k).value = book[k]; });
+    $('#photoInfo').textContent = data.photos ? `(уже є: ${book.photoCount}; нові додадуться після них)` : '';
+    clearPhotos();
+    setMode();
+    showCheck();
+    dirty = false;
+    $('#search').value = '';
+    setStatus('');
+  } catch (err) {
+    setStatus(err.message, 'err');
+  } finally {
+    busy = false;
+  }
+}
+
+function findFromSearch() {
+  const q = $('#search').value.trim();
+  if (!q) return;
+  const id = q.split(' · ')[0].trim().toLowerCase();
+  let book = data.books.find(b => b[0].toLowerCase() === id);
+  if (!book) {
+    const ql = q.toLowerCase();
+    const matches = data.books.filter(b => b[2].toLowerCase().includes(ql) || b[1].toLowerCase().includes(ql));
+    if (matches.length === 1) book = matches[0];
+    else {
+      setStatus(matches.length ? `Знайдено ${matches.length} — виберіть зі списку під полем пошуку` : 'Нічого не знайдено', 'err');
+      return;
+    }
+  }
+  openBook(book[0]);
+}
+
+// ───── Фото ─────
+
+// Зменшуємо до 1600 px і JPEG: швидше вантажиться і на сайт, і в Диск
+function shrink(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      URL.revokeObjectURL(url);
+      resolve({ base64: dataUrl.split(',')[1], url: dataUrl });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`«${file.name}»: формат не підтримується, збережіть як JPG`)); };
+    img.src = url;
+  });
+}
+
+$('#photoInput').addEventListener('change', async e => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  for (const f of files) {
+    try {
+      const p = await shrink(f);
+      photos.push(p);
+      const img = document.createElement('img');
+      img.src = p.url;
+      img.title = 'Натисніть, щоб прибрати';
+      img.onclick = () => { photos.splice(photos.indexOf(p), 1); img.remove(); };
+      $('#thumbs').appendChild(img);
+      dirty = true;
+    } catch (err) {
+      setStatus(err.message, 'err');
+    }
+  }
+});
+
+// ───── Збереження ─────
+
+form.addEventListener('submit', async e => {
+  e.preventDefault();
+  if (busy) return;
+  FIELDS.forEach(k => { field(k).dataset.touched = '1'; });
+  ['author', 'publisher', 'binding', 'language'].forEach(normalize);
+  const errors = showCheck();
+  if (Object.keys(errors).length) {
+    setStatus('Виправте поля, позначені червоним.', 'err');
+    form.querySelector('.bad')?.focus();
+    return;
+  }
+  busy = true;
+  $('#saveBtn').disabled = true;
+  const wasNew = !editing;
+  const v = values();
+  try {
+    setStatus('Зберігаю…');
+    const res = await call('formSaveBook', v, wasNew);
+    rememberBook(res.id, v);
+
+    let uploaded = 0;
+    const failed = [];
+    for (const p of photos) {
+      setStatus(`Завантажую фото ${uploaded + failed.length + 1} з ${photos.length}…`);
+      try { await call('formAddPhoto', res.id, p.base64); uploaded++; }
+      catch (err) { failed.push(err.message); }
+    }
+
+    const msg = `${wasNew ? 'Додано' : 'Збережено'} №${res.id} (рядок ${res.row})` +
+      (uploaded ? `, фото: ${uploaded}` : '') + (failed.length ? `\nФото не завантажились: ${failed.join('; ')}` : '');
+    dirty = false;
+    if (wasNew) {
+      newBook(true);
+    } else {
+      clearPhotos();
+      const count = await call('formGetBook', res.id).then(b => b.photoCount).catch(() => null);
+      if (count !== null && data.photos) $('#photoInfo').textContent = `(уже є: ${count}; нові додадуться після них)`;
+    }
+    setStatus(msg, failed.length ? 'err' : 'ok');
+  } catch (err) {
+    setStatus(err.message, 'err');
+  } finally {
+    busy = false;
+    $('#saveBtn').disabled = false;
+  }
+});
+
+// Оновлюємо локальні списки, щоб пошук, дублі й наступний № були актуальні без перезавантаження
+function rememberBook(id, v) {
+  const row = [String(id), v.author, v.title, v.stock];
+  const i = data.books.findIndex(b => b[0].toLowerCase() === String(id).toLowerCase());
+  if (i >= 0) data.books[i] = row; else data.books.push(row);
+  if (/^\d+$/.test(String(id))) data.nextId = Math.max(data.nextId, Number(id) + 1);
+  const add = (list, value) => {
+    if (value && !data[list].some(x => x.toLowerCase() === value.toLowerCase())) data[list].push(value);
+  };
+  add('authors', v.author); add('publishers', v.publisher); add('bindings', v.binding); add('languages', v.language);
+  fillLists();
+}
+
+function fillLists() {
+  fillList('#bookList', data.books.map(bookLabel));
+  fillList('#authorList', data.authors);
+  fillList('#publisherList', data.publishers);
+  fillList('#bindingList', data.bindings);
+  fillList('#languageList', data.languages);
+}
+
+// ───── Старт ─────
+
+form.addEventListener('input', e => {
+  dirty = true;
+  if (e.target.name) e.target.dataset.touched = '1';
+  showCheck();
+});
+['author', 'publisher', 'binding', 'language'].forEach(k => field(k).addEventListener('change', () => { normalize(k); showDupes(); }));
+$('#openBtn').onclick = findFromSearch;
+$('#search').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); findFromSearch(); } });
+// вибір зі списку підказок — одразу відкриваємо
+$('#search').addEventListener('input', e => {
+  if (!e.inputType || e.inputType === 'insertReplacementText') {
+    if (e.target.value.includes(' · ')) findFromSearch();
+  }
+});
+$('#newBtn').onclick = () => { if (!busy && canLeave()) { newBook(false); setStatus(''); } };
+
+call('formInit').then(d => {
+  data = d;
+  fillLists();
+  fillConditions();
+  $('#photoBox').hidden = !data.photos;
+  $('#loading').hidden = true;
+  $('#app').hidden = false;
+  newBook(false);
+}).catch(err => {
+  $('#loading').textContent = 'Не вдалося завантажити каталог: ' + err.message;
+});
+</script>
+</body>
+</html>
