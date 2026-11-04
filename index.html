@@ -130,6 +130,8 @@
         </div>
         <div class="order-pay">
           <div class="total"><span>Разом</span><b id="dlgTotal"></b></div>
+          <!-- лише коли в кошику є передзамовлення: показує js/cart.js (renderLines) -->
+          <p class="note pre-note" id="preNote" hidden>У замовленні є книги під передзамовлення. Відправимо все однією посилкою, щойно вони надійдуть, — термін уточнимо, коли підтверджуватимемо замовлення.</p>
           <div class="msg error" id="formMsg" role="alert"></div>
           <button type="submit" class="btn" id="submitOrder">Надіслати замовлення</button>
         </div>
@@ -177,8 +179,8 @@
       <section class="step" aria-labelledby="step3">
       <h3 class="step-title" id="step3"><span class="n" aria-hidden="true">3</span>Оплата</h3>
       <div class="choices" role="radiogroup" aria-label="Спосіб оплати">
-        <label class="choice"><input type="radio" name="payment" value="cod" checked><span><b>При отриманні</b><small id="codSub">накладений платіж</small></span></label>
-        <label class="choice"><input type="radio" name="payment" value="prepay"><span><b>Передоплата</b><small>на картку</small></span></label>
+        <label class="choice"><input type="radio" name="payment" value="prepay" checked><span><b>Передоплата</b><small>на картку</small></span></label>
+        <label class="choice"><input type="radio" name="payment" value="cod"><span><b>При отриманні</b><small id="codSub">накладений платіж</small></span></label>
       </div>
       <p class="note" id="payNote"></p>
 

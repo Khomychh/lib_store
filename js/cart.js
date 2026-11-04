@@ -122,6 +122,8 @@ function renderLines() {
     ul.append(li);
   }
   $('dlgTotal').textContent = money(cartTotal());
+  // передзамовлення відправляємо разом з рештою, коли надійде, — попереджаємо до надсилання
+  $('preNote').hidden = !lines.some(l => preorderPart(l.book, l.qty) > 0);
 }
 
 // Кількість у списку замовлення: «−» до 1 (прибрати — хрестиком), «+» до наявності (під передзамовлення — без межі).
