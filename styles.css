@@ -424,6 +424,15 @@ header { padding: 56px 16px 32px; }
 .grid .byline { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid .pricebox { display: block; text-align: left; align-self: end; }
 .grid .ctrl { align-self: end; }
+/* картка знає свою ширину: на вузькій (телефон, полиця добірки) ціна й «− 1 +» поруч не вміщаються */
+.grid .row { container: card / inline-size; }
+.grid .qty button { width: 30px; }
+.grid .qty input { width: 24px; }
+/* ціна до 7 000 грн — 78px, «− 1 +» — 84px: менше 170px — лічильник під ціну, а не поверх неї */
+@container card (max-width: 169px) {
+  .grid .row:has(.qty) .pricebox { grid-column: 1 / -1; }
+  .grid .row:has(.qty) .ctrl { grid-column: 1 / -1; justify-self: start; margin-top: 8px; }
+}
 
 .grid .cover.blank, .cover.blank.big {
   display: flex; flex-direction: column; justify-content: space-between; align-items: center;
@@ -645,7 +654,9 @@ header { padding: 56px 16px 32px; }
 /* ряд книг: на всю ширину вітрини; мало книг — стоять по центру, багато — наступна визирає з-за краю */
 .shelf-row {
   display: flex; gap: 26px;
-  list-style: none; margin: 22px 0 0; padding: 0 30px 4px;
+  /* ряд гортається вбік, тож обрізає все, що виходить за нього, і згори теж: 8px зверху — місце для
+     золотої рамки книги в кошику (виступає над обкладинкою на 6px); відступ від заголовка лишається 22px */
+  list-style: none; margin: 14px 0 0; padding: 8px 30px 4px;
   overflow-x: auto; overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory; scroll-padding: 0 30px;
   scrollbar-width: none;
