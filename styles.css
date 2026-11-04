@@ -540,6 +540,80 @@ header { padding: 56px 16px 32px; }
   .pager .step { padding: 0 10px; }
 }
 
+/* ---------- Добірки ----------
+   На головній — полиці: скляна смуга з назвою й рядом обкладинок, що гортається вбік.
+   Вибрана добірка — заголовок з описом над її книгами */
+.shelves { display: grid; gap: 14px; margin-top: 18px; }
+.shelf {
+  padding: 18px 0 8px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.shelf-head { display: flex; align-items: center; gap: 10px; padding: 0 16px 0 22px; }
+.shelf-title { flex: 1; min-width: 0; margin: 0; font: 600 21px/1.25 Literata, Georgia, serif; letter-spacing: -.01em; text-wrap: balance; }
+.shelf-title a { color: inherit; text-decoration: none; }
+.shelf-title a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.shelf-all, .shelf-nav button {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none;
+  height: 36px; padding: 0 10px 0 14px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--glass-field); color: var(--ink);
+  font-size: 13.5px; font-weight: 500; text-decoration: none; white-space: nowrap;
+  cursor: pointer; transition: background .15s, border-color .15s;
+}
+.shelf-all:hover, .shelf-nav button:hover:not(:disabled) { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.shelf-all svg, .shelf-nav svg { color: var(--muted); }
+.shelf-nav { display: flex; gap: 6px; }
+.shelf-nav button { width: 36px; padding: 0; }
+.shelf-nav button:disabled { opacity: .4; cursor: default; }
+/* на телефоні полицю гортають пальцем */
+@media (hover: none) { .shelf-nav { display: none; } }
+.shelf-desc {
+  margin: 6px 22px 0; max-width: 72ch;
+  color: var(--muted); font-size: 14px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.shelf-row {
+  display: flex; gap: 8px;
+  list-style: none; margin: 0; padding: 10px 12px 10px;
+  overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; scroll-padding: 0 12px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 40%, transparent) transparent;
+}
+.shelf-row > li { flex: 0 0 172px; scroll-snap-align: start; }
+.shelf-more a {
+  display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
+  height: 100%; min-height: 200px; margin: 0 4px;
+  border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent); border-radius: 14px;
+  color: var(--ink); text-decoration: none; text-align: center;
+}
+.shelf-more a:hover { background: var(--row-hover); }
+.shelf-more b { font: 600 22px/1.2 Literata, Georgia, serif; }
+.shelf-more span { color: var(--muted); font-size: 13.5px; }
+.shelf-more svg { margin-top: 6px; color: var(--muted); }
+
+.coll-intro { margin-top: 18px; }
+.coll-head {
+  margin-top: 12px; padding: 28px 34px 26px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.coll-kicker { margin: 0 0 6px; color: var(--muted); font-size: 12.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.coll-head :is(h1, h2) { font: 600 clamp(26px, 3.4vw, 36px)/1.15 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+.coll-desc { margin: 12px 0 0; max-width: 68ch; font: 400 16px/1.65 Literata, Georgia, serif; text-wrap: pretty; }
+.coll-desc + .coll-desc { margin-top: .6em; }
+@media (max-width: 600px) {
+  .shelf { padding-top: 16px; }
+  .shelf-head { padding: 0 12px 0 16px; }
+  .shelf-title { font-size: 19px; }
+  .shelf-desc { margin: 6px 16px 0; font-size: 13.5px; }
+  .shelf-row { padding: 8px 8px 8px; scroll-padding: 0 8px; gap: 4px; }
+  .shelf-row > li { flex-basis: 44vw; }
+  .coll-head { padding: 22px 20px 20px; }
+}
+
 .btn {
   font-weight: 600; cursor: pointer;
   border: 0; border-radius: 999px;
@@ -935,7 +1009,9 @@ body[data-page] .toolbar,
 body[data-page] main > .summary,
 body[data-page] main > .list,
 body[data-page] main > .state,
-body[data-page] main > .pager { display: none; }
+body[data-page] main > .pager,
+body[data-page] main > .shelves,
+body[data-page] main > .coll-intro { display: none; }
 body[data-page] main { max-width: 980px; }
 /* текстова сторінка вужча за книгу, але так само по центру, як шапка й підвал; «Усі книги» — над лівим краєм аркуша */
 body[data-page]:not([data-book]) main { max-width: 752px; }

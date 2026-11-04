@@ -1,5 +1,5 @@
 // Каталог: налаштування, стан, завантаження книг, пошук і сортування, показ вітриною чи списком, обкладинки.
-// Скрипти підключаються в index.html по черзі й мають спільні змінні: catalog → filters → cart → book → order → app.
+// Скрипти підключаються в index.html по черзі й мають спільні змінні: catalog → filters → collections → cart → book → order → app.
 
 // URL веб-застосунку Google Apps Script (див. docs/setup.md, крок 3)
 const API_URL = 'https://script.google.com/macros/s/AKfycby2gayZYooqZHYsOsrKM7wTZVsP68SlDtbBXQKCvr8XmuiLiYXL5qBouuTsO5U3UHkc/exec';
@@ -51,7 +51,9 @@ async function init() {
   }
   if (onCatalogPath()) pageNo = pageFromPath();
   // спочатку показуємо збережений каталог, поки Google віддає свіжий
-  const cached = loadCachedBooks();
+  // збережений каталог без добірок (з часів до них) на сторінці добірки нічого не покаже — чекаємо свіжий
+  let cached = loadCachedBooks();
+  if (cached && !cached.collections && COLL_PATH.test(location.pathname)) cached = null;
   if (cached) setBooks(cached, false);
   // на опублікованому сайті перші книги вже вписані в HTML (scripts/build.mjs) — заглушки не потрібні
   else if (!$('list').children.length) renderSkeleton();
@@ -60,7 +62,7 @@ async function init() {
     const res = await fetch(API_URL);
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
-    const catalog = { books: data.books, categories: data.categories || [] };
+    const catalog = { books: data.books, categories: data.categories || [], collections: data.collections || [] };
     try { localStorage.setItem(BOOKS_KEY, JSON.stringify(catalog)); } catch {}
     setBooks(catalog, !!cached);
   } catch (err) {
@@ -85,7 +87,7 @@ function loadCachedBooks() {
   } catch { return null; }
 }
 
-// ---------- Сторінки каталогу: /, /storinka/2/, /storinka/3/… ----------
+// ---------- Сторінки каталогу: /, /storinka/2/, /storinka/3/…, добірки /dobirka/<адреса>/ ----------
 // Збирач робить такі сторінки й статично (scripts/build.mjs) — для Google і без JavaScript;
 // тут перемикаємо їх без перезавантаження. Кнопка «Назад» повертає на попередню сторінку
 const PAGE_PATH = /^\/storinka\/(\d+)\/?$/;
@@ -96,12 +98,13 @@ function pageFromPath() {
 const pagePath = n => n > 1 ? `/storinka/${n}/` : '/';
 // адресу міняємо лише на сторінках каталогу: на сторінці книги чи 404 вона своя
 const onCatalogPath = () => !document.body.hasAttribute('data-page') &&
-  (location.pathname === '/' || location.pathname.endsWith('/index.html') || PAGE_PATH.test(location.pathname));
+  (location.pathname === '/' || location.pathname.endsWith('/index.html') || PAGE_PATH.test(location.pathname) ||
+    COLL_PATH.test(location.pathname));
 
-// Адреса = сторінка каталогу + вибрана категорія; відкрита картка книги (#book-…) лишається
+// Адреса = сторінка каталогу чи добірка + вибрана категорія; відкрита картка книги (#book-…) лишається
 function syncUrl(push) {
   const hash = location.hash.startsWith('#book-') ? location.hash : catHash();
-  const path = onCatalogPath() ? pagePath(pageNo) : location.pathname;
+  const path = onCatalogPath() ? (coll ? collPath(coll) : pagePath(pageNo)) : location.pathname;
   if (path + hash === location.pathname + location.hash) return;
   history[push ? 'pushState' : 'replaceState'](null, '', path + location.search + hash);
 }
@@ -118,7 +121,10 @@ function goPage(n) {
 addEventListener('popstate', () => {
   if (!onCatalogPath() || !books.length) return;
   pageNo = pageFromPath();
-  render();
+  if (collFromPath() !== coll) {
+    setColl(collFromPath());
+    applyFilter(true);
+  } else render();
 });
 
 // Номери в перемикачі: перша, остання і сусіди поточної; проміжки — «…»
@@ -181,6 +187,10 @@ function setBooks(catalog, keepPage) {
   books = catalog.books;
   byId = new Map(books.map(b => [b.id, b]));
   buildCategories(catalog.categories);
+  buildCollections(catalog.collections);
+  // добірка з адреси; якої вже немає (прибрали з аркуша, усе продано) — показуємо всі книги й міняємо адресу
+  const wantColl = onCatalogPath() ? collFromPath() : '';
+  setColl(wantColl);
   readHashCategory();
   // категорія з посилання чи з минулого показу могла спорожніти — тоді показуємо всі книги
   const anyCategory = [...cats.values()].some(hasBooks);
@@ -195,7 +205,7 @@ function setBooks(catalog, keepPage) {
   pruneFilters();
   // перше завантаження — сторінка з адреси; свіжий каталог після збереженого — та сама сторінка
   applyFilter(true);
-  if (!keepPage) syncUrl(false);
+  if (!keepPage || wantColl !== coll) syncUrl(false);
   updateCartBar();
   drawPageBook();
   openFromHash();
@@ -210,9 +220,11 @@ function matchesSearch(b, words) {
 // keepPage — лишити поточну сторінку (нові дані); інакше (змінили пошук, фільтр, сортування) — перша сторінка
 function applyFilter(keepPage) {
   const words = searchWords();
-  filtered = books.filter(b => inCategory(b) && passFilters(b) && matchesSearch(b, words));
+  filtered = books.filter(b => inCollection(b) && inCategory(b) && passFilters(b) && matchesSearch(b, words));
   const collator = new Intl.Collator('uk');
   const sorters = {
+    // як розставили в аркуші «Добірки»
+    'collection': (a, b) => collectionRank(a) - collectionRank(b),
     // більший № у таблиці — пізніше додана книга
     'newest': (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
     'title': (a, b) => collator.compare(a.title, b.title),
@@ -229,18 +241,24 @@ function applyFilter(keepPage) {
 }
 
 function render() {
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE));
+  // добірка — уся на одній сторінці: їх складають невеликими
+  const per = coll ? Infinity : PAGE;
+  const pages = coll ? 1 : Math.max(1, Math.ceil(filtered.length / PAGE));
   // сторінки, якої вже немає (книги продали, звузили фільтр), — показуємо останню
   if (pageNo > pages) { pageNo = pages; syncUrl(false); }
   const list = $('list');
   list.textContent = '';
   const frag = document.createDocumentFragment();
-  for (const b of filtered.slice((pageNo - 1) * PAGE, pageNo * PAGE)) frag.append(bookRow(b));
+  for (const b of filtered.slice((pageNo - 1) * per, pageNo * per)) frag.append(bookRow(b));
   list.append(frag);
   renderPager(pages);
+  renderIntro();
+  renderShelves();
 
   $('count').textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
-  showState(filtered.length ? '' : cat
+  showState(filtered.length ? '' : coll
+    ? 'У цій добірці нічого не знайдено. Спробуйте інший запит або приберіть фільтри.'
+    : cat
     ? 'У цій категорії нічого не знайдено. Спробуйте інший запит або виберіть «Усі книги».'
     : 'Нічого не знайдено. Спробуйте інший запит.');
 }
@@ -259,8 +277,9 @@ function el(tag, cls, text) {
   return e;
 }
 
-// Розмітку картки для вітрини повторює збирач (staticRow у scripts/build.mjs) — міняєте тут, міняйте й там
-function bookRow(b) {
+// Розмітку картки для вітрини повторює збирач (staticRow у scripts/build.mjs) — міняєте тут, міняйте й там.
+// grid — картка вітрини з обкладинкою (типово — як вибрано для каталогу; на полицях добірок — завжди)
+function bookRow(b, grid = view === 'grid') {
   const li = el('li', 'row');
   li.dataset.id = b.id;
 
@@ -270,11 +289,11 @@ function bookRow(b) {
   // одне фото вже видно на мініатюрі; підпис лишаємо, лише коли є що гортати
   const photos = b.photos?.length > 1 && b.photos.length + ' фото';
   // стан уживаної книги: у списку — у підписі, на вітрині — позначкою на обкладинці
-  const cond = view === 'list' && isUsed(b) && 'стан: ' + b.condition.toLowerCase();
+  const cond = !grid && isUsed(b) && 'стан: ' + b.condition.toLowerCase();
   const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', cond, photos].filter(Boolean).join(' · ');
   if (meta) sub.append((b.author ? ' · ' : '') + meta);
   // позначка на обкладинці схована від читачів екрана разом з обкладинкою — дублюємо її для них
-  if (view === 'grid' && isUsed(b)) sub.append(el('span', 'sr-only', `, стан: ${b.condition}`));
+  if (grid && isUsed(b)) sub.append(el('span', 'sr-only', `, стан: ${b.condition}`));
   const title = el('a', 'title', b.title);
   // справжня адреса сторінки книги — за нею Google знаходить книги, а середня кнопка миші відкриває її окремо;
   // звичайний клік відкриває картку тут же, без переходу
@@ -285,7 +304,7 @@ function bookRow(b) {
   const priceBox = el('div', 'pricebox');
   priceBox.append(...priceLines(b));
 
-  li.append(bookCover(b), info, priceBox, cartControl(b, li));
+  li.append(bookCover(b, false, grid), info, priceBox, cartControl(b, li));
   li.classList.toggle('in-cart', !!cart[b.id]);
   return li;
 }
@@ -365,12 +384,12 @@ const COVER_RATIO = 5 / 7;
 const FILL_TOLERANCE = 0.12;
 
 // Перше фото книги як обкладинка; немає фото або воно не відкрилося — тканинна палітурка.
-// plain — без позначок стану й знижки (мініатюра в замовленні)
-function bookCover(b, plain) {
+// plain — без позначок стану й знижки (мініатюра в замовленні); grid — велика обкладинка вітрини
+function bookCover(b, plain, grid = view === 'grid') {
   const box = el('div', 'cover');
   box.setAttribute('aria-hidden', 'true');
   const badge = () => {
-    if (view !== 'grid' || plain) return;
+    if (!grid || plain) return;
     if (isUsed(b)) box.append(el('span', 'cond', b.condition));
     if (discount(b)) box.append(el('span', 'ribbon', `−${discount(b)}%`));
   };
@@ -382,7 +401,7 @@ function bookCover(b, plain) {
   const id = b.photos?.[0];
   if (!id) { blank(); return box; }
   // з запасом на екрани з високою щільністю: 48px у списку, до ~200px на вітрині
-  const src = photoUrl(id, view === 'grid' ? 480 : 150);
+  const src = photoUrl(id, grid ? 480 : 150);
   // книга будь-яких пропорцій видна цілою; поля навколо заповнює вона ж, розмита, як скло над фото
   const layer = cls => {
     const img = el('img', cls);

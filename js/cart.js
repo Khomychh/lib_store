@@ -54,14 +54,16 @@ function setQty(id, q) {
   syncControls(id);
 }
 
-// В однієї книги буває кілька кнопок кошика: у рядку каталогу і на сторінці книги.
+// В однієї книги буває кілька кнопок кошика: у рядку каталогу, на полиці добірки і на сторінці книги.
 // Після зміни перемальовуємо ті, якими не користувались, — щоб не збити фокус з тієї, де людина зараз
 function syncControls(id) {
   const active = document.activeElement;
-  const row = $('list').querySelector(`[data-id="${CSS.escape(id)}"]`);
-  if (row && !row.contains(active)) row.replaceWith(bookRow(byId.get(id)));
+  for (const row of rowsOf(id)) if (!row.contains(active)) redrawRow(row);
   if (id === PAGE_BOOK && !$('pageCtrl').contains(active)) drawPageBook();
 }
+const rowsOf = id => document.querySelectorAll(`#list .row[data-id="${CSS.escape(id)}"], #shelves .row[data-id="${CSS.escape(id)}"]`);
+// на полиці — завжди картка вітрини, у каталозі — як вибрано
+const redrawRow = row => row.replaceWith(bookRow(byId.get(row.dataset.id), row.closest('#shelves') ? true : undefined));
 
 // Сторінка книги (/book/15/): збирач кладе номер книги в <body data-book="15">, а сам опис — у розмітку.
 // Ціну й наявність підставляємо свіжі з каталогу: сторінку могли зібрати до останньої зміни в таблиці
@@ -127,6 +129,5 @@ function renderLines() {
 }
 
 function refreshRow(id) {
-  const old = $('list').querySelector(`[data-id="${CSS.escape(id)}"]`);
-  if (old) old.replaceWith(bookRow(byId.get(id)));
+  for (const row of rowsOf(id)) redrawRow(row);
 }

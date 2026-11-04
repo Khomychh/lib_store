@@ -15,6 +15,9 @@ const CATALOG_SHEET = '';
 // Аркуш з деревом категорій у таблиці з книгами: «Категорія» і «Батьківська» (порожньо — верхній рівень).
 // Створюється функцією setupCatalog; якщо аркуша немає — сайт працює без категорій
 const CATEGORIES_SHEET = 'Категорії';
+// Аркуш з добірками в таблиці з книгами: «Назва», «Опис», «Книги» (номери через кому, у потрібному порядку),
+// «Адреса» (необов'язково). Створюється функцією setupCatalog; якщо аркуша немає — сайт працює без добірок
+const COLLECTIONS_SHEET = 'Добірки';
 // ID папки на Google Диску з фото книг (частина посилання після /folders/); порожньо — без фото.
 // Файл називається номером книги з колонки «№»: 15.jpg — обкладинка, 15-2.jpg, 15-3.jpg — ще фото
 const PHOTOS_FOLDER = '';
@@ -68,7 +71,7 @@ function doGet() {
     // з К-сть 0 лишаються лише книги, які можна передзамовити
     .filter(b => b.stock > 0 || b.preorder)
     .map(b => Object.assign(b, { photos: photos[b.id.toLowerCase()] || [] }));
-  return json_({ ok: true, books, categories: readCategories_() });
+  return json_({ ok: true, books, categories: readCategories_(), collections: readCollections_(books) });
 }
 
 function catalog_() {
@@ -108,6 +111,64 @@ function readCategories_() {
     .filter(c => c.name && !seen[c.name] && (seen[c.name] = true));
 }
 
+// Добірки в порядку рядків аркуша: [{ name, slug, description, books: ['15', '42'] }].
+// Лишаються лише книги, які є на сайті (books), у порядку з клітинки; добірка без жодної такої книги не передається.
+// slug — адреса сторінки /dobirka/<slug>/: з колонки «Адреса» або латиницею з назви
+function readCollections_(books) {
+  const sheet = catalog_().getSheetByName(COLLECTIONS_SHEET);
+  if (!sheet) return [];
+  // як видно в таблиці: «15,42», яке таблиця вважала б дробовим числом, лишається «15,42»
+  const values = sheet.getDataRange().getDisplayValues();
+  const head = values[0].map(h => String(h).trim());
+  const col = name => head.indexOf(name);
+  const c = { name: col('Назва'), description: col('Опис'), books: col('Книги'), slug: col('Адреса') };
+  if (c.name < 0 || c.books < 0) return [];
+  const onSite = {};
+  books.forEach(b => { onSite[b.id] = true; });
+  const slugs = {};
+  const out = [];
+  values.slice(1).forEach(r => {
+    const name = String(r[c.name]).trim();
+    if (!name) return;
+    const ids = [];
+    String(r[c.books]).split(/[\s,;.]+/).forEach(id => {
+      if (id && onSite[id] && ids.indexOf(id) < 0) ids.push(id);
+    });
+    if (!ids.length) return;
+    let slug = slug_(c.slug < 0 ? '' : r[c.slug]) || slug_(name) || 'dobirka';
+    // дві добірки з однаковою адресою — другій дописуємо номер
+    for (let i = 2, base = slug; slugs[slug]; i++) slug = `${base}-${i}`;
+    slugs[slug] = true;
+    const item = { name, slug, books: ids };
+    const description = c.description < 0 ? '' : String(r[c.description]).trim();
+    if (description) item.description = description;
+    out.push(item);
+  });
+  return out;
+}
+
+// «Для початківців у богослов'ї» → «dlia-pochatkivtsiv-u-bohoslovi» (українська транслітерація, як у паспортах)
+const TRANSLIT_ = {
+  а: 'a', б: 'b', в: 'v', г: 'h', ґ: 'g', д: 'd', е: 'e', є: 'ie', ж: 'zh', з: 'z', и: 'y', і: 'i', ї: 'i', й: 'i',
+  к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts',
+  ч: 'ch', ш: 'sh', щ: 'shch', ь: '', ю: 'iu', я: 'ia', ы: 'y', э: 'e', ё: 'io', ъ: '',
+};
+// на початку слова — інакше: «Юрій» → «yurii»
+const TRANSLIT_START_ = { є: 'ye', ї: 'yi', й: 'y', ю: 'yu', я: 'ya' };
+function slug_(text) {
+  const s = String(text || '').toLowerCase().replace(/[’'ʼ`]/g, '');
+  let out = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const start = !i || !/[a-zа-яіїєґё0-9]/.test(s[i - 1]);
+    if (ch === 'г' && s[i - 1] === 'з') out += 'gh'; // «зг» → «zgh», щоб не читалось як «ж»
+    else if (start && TRANSLIT_START_[ch]) out += TRANSLIT_START_[ch];
+    else if (ch in TRANSLIT_) out += TRANSLIT_[ch];
+    else out += /[a-z0-9]/.test(ch) ? ch : '-';
+  }
+  return out.replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 80).replace(/-$/, '');
+}
+
 // Підказки у випадних списках каталогу. «Стан» — лише з цього списку; в інші колонки можна вписати
 // й інше значення (таблиця лише попередить), і воно з'явиться у фільтрі на сайті, тож пишіть однаково:
 // «Тверда», а не «тверда» чи «Тверда обкладинка»
@@ -126,6 +187,7 @@ const preorderOn_ = v => /^доступн/i.test(String(v).trim());
 // Запустіть вручну один раз (і щоразу, коли додали рядки в каталог за межами випадних списків).
 // У таблиці з книгами:
 //  - створює аркуш «Категорії» з випадним списком батьківської категорії;
+//  - створює аркуш «Добірки» (назва, опис, номери книг, адреса сторінки);
 //  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Передзамовлення»,
 //    «Видавництво», «Акційна ціна», «ISBN»;
 //  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова, передзамовлення — з FIELD_OPTIONS
@@ -144,6 +206,22 @@ function setupCatalog() {
     .setHelpText('Виберіть категорію з аркуша «Категорії»')
     .build();
   sheet.getRange('B2:B').setDataValidation(list);
+
+  if (!ss.getSheetByName(COLLECTIONS_SHEET)) {
+    const coll = ss.insertSheet(COLLECTIONS_SHEET, ss.getSheets().length);
+    coll.getRange(1, 1, 1, 4).setValues([['Назва', 'Опис', 'Книги', 'Адреса']]).setFontWeight('bold');
+    coll.getRange(1, 3).setNote('Номери книг з колонки «№» через кому, у тому порядку, в якому їх показувати: 15, 42, 7');
+    coll.getRange(1, 4).setNote('Необов\'язково. Адреса сторінки /dobirka/<адреса>/ латиницею; порожньо — складається з назви. ' +
+      'Якщо вже поширили посилання на добірку, а потім змінили назву, впишіть сюди стару адресу — посилання не зламається');
+    coll.setFrozenRows(1);
+    coll.setColumnWidth(1, 260);
+    coll.setColumnWidth(2, 380);
+    coll.setColumnWidth(3, 220);
+    coll.setColumnWidth(4, 200);
+    coll.getRange('B2:B').setWrap(true);
+  }
+  // номери — як текст: інакше «15,42» таблиця вважає дробовим числом
+  ss.getSheetByName(COLLECTIONS_SHEET).getRange('C2:C').setNumberFormat('@');
 
   const books = catalogSheet_(ss);
   const head = books.getRange(1, 1, 1, books.getLastColumn()).getValues()[0].map(h => String(h).trim());

@@ -1,4 +1,5 @@
 // Фільтри: стан, обкладинка і категорії (дерево з аркуша «Категорії»), меню «Фільтри».
+// Добірки (js/collections.js) теж є в меню, але знімаються не «пігулкою», а посиланням «Усі книги» над добіркою
 
 // ---------- Фільтри за станом і обкладинкою ----------
 // Значення беруться з самих книг; відомі йдуть у цьому порядку, решта — за абеткою після них.
@@ -36,11 +37,11 @@ function toggleFilter(key, value) {
 }
 
 function renderFilters() {
-  const any = categoryRoots().length > 0 || FACETS.some(f => books.some(b => b[f.key]));
+  const any = categoryRoots().length > 0 || collections.length > 0 || FACETS.some(f => books.some(b => b[f.key]));
   $('filter').hidden = !any;
   if (!any) closeFilters();
 
-  const total = (cat ? 1 : 0) + FACETS.reduce((s, f) => s + picked[f.key].size, 0);
+  const total = (cat ? 1 : 0) + (coll ? 1 : 0) + FACETS.reduce((s, f) => s + picked[f.key].size, 0);
   $('filterBadge').hidden = !total;
   $('filterBadge').textContent = total;
   $('filterBtn').setAttribute('aria-label', total ? `Фільтри, увімкнено: ${total}` : 'Фільтри');
@@ -92,6 +93,22 @@ function buildFilterMenu() {
     }
     menu.append(group);
   }
+  // добірка — одна; вибір відкриває її сторінку (адреса /dobirka/…) з її заголовком
+  if (collections.length) {
+    const group = el('fieldset');
+    group.append(el('legend', null, 'Добірка'));
+    for (const c of [{ slug: '', name: 'Усі книги' }, ...collections]) {
+      const label = el('label', 'check');
+      const radio = el('input');
+      radio.type = 'radio';
+      radio.name = 'coll';
+      radio.value = c.slug;
+      radio.onchange = () => selectColl(c.slug);
+      label.append(radio, c.name, el('span', 'n'));
+      group.append(label);
+    }
+    menu.append(group);
+  }
   for (const f of FACETS) {
     const values = facetValues(f);
     if (!values.length) continue;
@@ -119,7 +136,7 @@ function updateFilterMenu() {
   const words = searchWords();
   // категорії рахуємо з урахуванням пошуку й решти фільтрів, але без самої категорії
   const searched = books.filter(b => matchesSearch(b, words));
-  const forCats = searched.filter(b => passFilters(b));
+  const forCats = searched.filter(b => passFilters(b) && inCollection(b));
   for (const radio of menu.querySelectorAll('input[name="cat"]')) {
     const name = radio.value;
     const n = !name ? forCats.length
@@ -129,7 +146,16 @@ function updateFilterMenu() {
     radio.parentElement.querySelector('.n').textContent = n;
     radio.parentElement.classList.toggle('empty', !n && !radio.checked);
   }
-  const base = searched.filter(inCategory);
+  // добірки — так само, без самої добірки
+  const forColls = searched.filter(b => passFilters(b) && inCategory(b));
+  for (const radio of menu.querySelectorAll('input[name="coll"]')) {
+    const c = collBySlug.get(radio.value);
+    const n = c ? forColls.filter(b => c.order.has(b.id)).length : forColls.length;
+    radio.checked = radio.value === coll;
+    radio.parentElement.querySelector('.n').textContent = n;
+    radio.parentElement.classList.toggle('empty', !n && !radio.checked);
+  }
+  const base = searched.filter(b => inCategory(b) && inCollection(b));
   for (const box of menu.querySelectorAll('input[type="checkbox"]')) {
     const { key, value } = box.dataset;
     const n = base.filter(b => b[key] === value && passFilters(b, key)).length;

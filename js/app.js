@@ -14,6 +14,9 @@ for (const li of sortItems) {
   li.addEventListener('mousemove', () => highlight(sortItems.indexOf(li)));
 }
 
+// пункт «Як у добірці» видно лише в добірці — стрілками ходимо лише видимими
+const shownSorts = () => sortItems.filter(li => !li.hidden);
+
 function openSort() {
   sortMenu.hidden = false;
   sortBtn.setAttribute('aria-expanded', 'true');
@@ -28,10 +31,17 @@ function highlight(i) {
   activeItem = i;
   sortItems.forEach((li, j) => li.classList.toggle('active', j === i));
 }
+// вибрати сортування без перемальовування (його вмикає й вимикає вибір добірки, js/collections.js)
+function setSort(value) {
+  sortBy = value;
+  for (const li of sortItems) {
+    li.setAttribute('aria-selected', li.dataset.value === value);
+    if (li.dataset.value === 'collection') li.hidden = !coll;
+  }
+  $('sortLabel').textContent = sortItems.find(li => li.dataset.value === value).textContent;
+}
 function chooseSort(li) {
-  sortBy = li.dataset.value;
-  sortItems.forEach(x => x.setAttribute('aria-selected', x === li));
-  $('sortLabel').textContent = li.textContent;
+  setSort(li.dataset.value);
   closeSort();
   sortBtn.focus();
   applyFilter();
@@ -39,8 +49,10 @@ function chooseSort(li) {
 
 sortBtn.addEventListener('click', () => sortMenu.hidden ? openSort() : closeSort());
 sortMenu.addEventListener('keydown', e => {
-  if (e.key === 'ArrowDown') highlight((activeItem + 1) % sortItems.length);
-  else if (e.key === 'ArrowUp') highlight((activeItem - 1 + sortItems.length) % sortItems.length);
+  const shown = shownSorts();
+  const at = shown.indexOf(sortItems[activeItem]);
+  if (e.key === 'ArrowDown') highlight(sortItems.indexOf(shown[(at + 1) % shown.length]));
+  else if (e.key === 'ArrowUp') highlight(sortItems.indexOf(shown[(at - 1 + shown.length) % shown.length]));
   else if (e.key === 'Enter' || e.key === ' ') chooseSort(sortItems[activeItem]);
   else if (e.key === 'Escape' || e.key === 'Tab') { closeSort(); sortBtn.focus(); }
   else return;
