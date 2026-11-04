@@ -1006,6 +1006,38 @@ textarea { resize: vertical; min-height: 76px; }
   border: 1.5px solid color-mix(in srgb, var(--muted) 60%, transparent);
   box-sizing: border-box;
 }
+/* Нова пошта: як отримати — сегментований перемикач під плитками перевізників */
+.carriers ~ .form { margin-top: 14px; }
+/* чотири перевізники — одним рядом, а не 3 + 1; на вузькому — 2 × 2 */
+.choices.carriers { grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); }
+.seg {
+  display: flex; gap: 3px; margin-top: 10px; padding: 3px;
+  border: 1px solid var(--line); border-radius: 13px; background: var(--glass-field);
+}
+.seg[hidden] { display: none; }
+.seg label { flex: 1; min-width: 0; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 9px 6px; border-radius: 10px;
+  font-size: 13.5px; font-weight: 500; color: var(--muted); white-space: nowrap;
+  transition: background .15s, color .15s, box-shadow .15s;
+}
+.seg span .ico { flex: none; width: 18px; height: 18px; }
+.seg label:hover span { color: var(--ink); }
+.seg input:checked + span { background: var(--menu); color: var(--ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .12), inset 0 0 0 1px var(--accent); }
+.seg input:checked + span .ico { color: var(--accent); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* на телефоні в перемикачі лише слова: з іконками «Відділення» впирається в краї */
+@media (max-width: 420px) { .seg span .ico { display: none; } }
+/* місце під логотип перевізника (файл у img/carriers/) замість іконки */
+.choice .logo { display: block; height: 22px; width: auto; max-width: 100%; margin-bottom: 6px; object-fit: contain; object-position: left; }
+/* у Meest логотип — напис, а не знак: трохи більший, щоб читався; висота плитки та сама */
+.choice .logo-meest { height: 30px; margin: -4px 0 2px -2px; }
+
+/* іконка способу доставки чи оплати — над назвою; вибраний спосіб — іконка кольором акценту */
+.choice .ico { display: block; width: 22px; height: 22px; margin-bottom: 6px; color: var(--muted); transition: color .15s; }
+.choice input:checked + span .ico { color: var(--accent); }
 .choice b { color: var(--ink); font-size: 14px; font-weight: 600; }
 .choice small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
 .choice:hover span { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }

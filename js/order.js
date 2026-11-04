@@ -165,16 +165,24 @@ function updateDelivery() {
     : pickup ? '' : 'Перевізник бере комісію за грошовий переказ за своїми тарифами.';
 }
 
+// Спосіб доставки складається з двох виборів: перевізник і (для Нової пошти) як отримати.
+// Результат — у прихованому полі method, з тими самими значеннями, що й раніше
+function syncMethod() {
+  F.method.value = F.carrier.value === 'np' ? F.npType.value : F.carrier.value;
+}
+syncMethod();
+
 let lastMethod = method();
 form.addEventListener('change', e => {
-  if (e.target.name === 'method') {
+  if (e.target.name === 'carrier' || e.target.name === 'npType') {
+    syncMethod();
     // відділення і поштомат — різні списки, а місто без вибору зі списку Новій пошті не підходить
     if (!METHODS[lastMethod].np && METHODS[method()].np) delete F.city.dataset.ref;
     lastMethod = method();
     resetWarehouse();
     for (const input of Object.keys(RULES).map(n => F[n])) if (input.closest('[hidden]')) clearError(input);
   }
-  if (['method', 'payment', 'otherRecipient'].includes(e.target.name)) updateDelivery();
+  if (['carrier', 'npType', 'payment', 'otherRecipient'].includes(e.target.name)) updateDelivery();
 });
 
 // Валідація: кожне правило повертає текст помилки або ''
