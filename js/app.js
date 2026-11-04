@@ -61,7 +61,27 @@ sortMenu.addEventListener('keydown', e => {
 document.addEventListener('click', e => {
   if (!sortMenu.hidden && !e.target.closest('.sort')) closeSort();
   if (!$('filterMenu').hidden && !e.target.closest('.filter')) closeFilters();
+  if (!$('chatMenu').hidden && !e.target.closest('.chat')) closeChat();
 });
+
+// Кнопка «Написати продавцю»: меню з Telegram і поштою
+function closeChat() {
+  $('chatMenu').hidden = true;
+  $('chatBtn').setAttribute('aria-expanded', 'false');
+}
+$('chatBtn').addEventListener('click', () => {
+  const open = $('chatMenu').hidden;
+  $('chatMenu').hidden = !open;
+  $('chatBtn').setAttribute('aria-expanded', String(open));
+  if (open) $('chatMenu').querySelector('a').focus();
+});
+$('chat').addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || $('chatMenu').hidden) return;
+  closeChat();
+  $('chatBtn').focus();
+});
+// перейшли в Telegram чи пошту — меню закриваємо, щоб, повернувшись, людина бачила сторінку
+for (const a of $('chatMenu').querySelectorAll('a')) a.addEventListener('click', () => setTimeout(closeChat, 0));
 
 $('filterBtn').addEventListener('click', () => $('filterMenu').hidden ? openFilters() : closeFilters());
 $('filterMenu').addEventListener('keydown', e => {

@@ -748,6 +748,48 @@ header { padding: 56px 16px 32px; }
 .cartbar b { font: 600 17px Literata, Georgia, serif; white-space: nowrap; }
 .cartbar .btn { white-space: nowrap; }
 
+/* Зв'язок з продавцем: золота кругла кнопка в правому нижньому куті, над нею — меню */
+.chat { position: fixed; right: 20px; bottom: 20px; z-index: 11; transition: bottom .25s cubic-bezier(.2, .8, .2, 1); }
+.chat-btn {
+  display: grid; place-items: center;
+  width: 56px; height: 56px; padding: 0;
+  border: 0; border-radius: 50%; cursor: pointer;
+  background: var(--gilt-foil); color: var(--gilt-ink);
+  box-shadow: var(--gilt-shine), 0 10px 28px rgba(0, 0, 0, .4);
+  transition: filter .15s;
+}
+.chat-btn:hover { filter: brightness(1.08) saturate(1.1); }
+.chat-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.chat-menu {
+  position: absolute; right: 0; bottom: calc(100% + 10px);
+  width: max-content; max-width: calc(100vw - 40px);
+  padding: 6px;
+  background: var(--menu); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: var(--shadow-lg);
+  transform-origin: bottom right;
+  animation: pop .14s ease-out;
+}
+.chat-title { margin: 6px 10px 6px; font-size: 12.5px; color: var(--muted); }
+.chat-menu a {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; border-radius: 11px;
+  color: var(--ink); text-decoration: none;
+}
+.chat-menu a:hover, .chat-menu a:focus-visible { background: var(--accent-soft); outline: none; }
+.chat-menu a svg { flex: none; color: var(--accent); }
+.chat-menu span { display: grid; gap: 1px; }
+.chat-menu b { font-size: 14px; font-weight: 600; }
+.chat-menu small { font-size: 12.5px; color: var(--muted); }
+/* на вузькому екрані смуга кошика на всю ширину — кнопка піднімається над нею */
+@media (max-width: 760px) {
+  body:has(.cartbar.show) .chat { bottom: 100px; }
+}
+@media (max-width: 600px) {
+  .chat { right: 14px; bottom: 14px; }
+  .chat-btn { width: 52px; height: 52px; }
+}
+@media print { .chat { display: none; } }
+
 /* ---------- Вікна: скляні аркуші над затемненим фото ----------
    На ПК — по центру; на телефоні — аркуш, що виїжджає знизу на всю ширину */
 dialog {
