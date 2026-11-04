@@ -381,7 +381,8 @@ header { padding: 56px 16px 32px; }
 :root { --cols: 5; --gap: 20px; } /* не більше п'яти: інакше обкладинки дрібні, а назви обрізаються */
 @media (max-width: 939px) { :root { --cols: 4; } }
 @media (max-width: 759px) { :root { --cols: 3; } }
-@media (max-width: 600px) { :root { --cols: 2; --gap: 10px; } }
+/* телефон: одна книга в ряду — горизонтальна картка (див. «Телефон: одна книга в ряду» нижче) */
+@media (max-width: 600px) { :root { --cols: 1; --gap: 10px; } }
 .list.grid {
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
@@ -442,6 +443,38 @@ header { padding: 56px 16px 32px; }
 @container card (max-width: 169px) {
   .grid .row:has(.qty) .pricebox { grid-column: 1 / -1; }
   .grid .row:has(.qty) .ctrl { grid-column: 1 / -1; justify-self: start; margin-top: 8px; }
+}
+
+/* Телефон: одна книга в ряду. Обкладинка на всю ширину була б ~500px заввишки — на екрані вміщалася б одна книга,
+   тому картка горизонтальна: велика обкладинка ліворуч, праворуч назва, автор, рік, а внизу ціна й кошик.
+   Лише вітрина каталогу (#list): полиці добірок на телефоні так само гортаються вбік */
+@media (max-width: 600px) {
+  #list.grid { row-gap: 14px; }
+  #list.grid .row {
+    grid-template-columns: 40% minmax(0, 1fr) auto;
+    grid-template-rows: auto 1fr auto;
+    gap: 0 14px;
+    padding: 12px 14px 14px 12px;
+  }
+  #list.grid .row .cover {
+    grid-column: 1; grid-row: 1 / -1; align-self: start;
+    width: 100%; margin: 0;
+    border-radius: 3px 6px 6px 3px;
+    box-shadow: 0 2px 3px rgba(0, 0, 0, .35), 0 14px 22px -10px rgba(0, 0, 0, .6);
+  }
+  #list.grid .row .info { grid-column: 2 / -1; grid-row: 1; margin: 4px 0 10px; }
+  #list.grid .row .title { font-size: 17px; line-height: 1.3; -webkit-line-clamp: 4; }
+  /* автор і рік — до двох рядків, а не обрізані на першому */
+  #list.grid .byline {
+    margin-top: 6px; white-space: normal;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  }
+  #list.grid .pricebox { grid-column: 2; grid-row: 3; align-self: end; }
+  #list.grid .price { font-size: 19px; }
+  #list.grid .ctrl { grid-column: 3; grid-row: 3; align-self: end; }
+  /* у кошику ціна й «− 1 +» поруч не вміщаються — лічильник під ціну, на всю праву колонку */
+  #list.grid .row:has(.qty) .pricebox { grid-column: 2 / -1; grid-row: 2; align-self: end; }
+  #list.grid .row:has(.qty) .ctrl { grid-column: 2 / -1; grid-row: 3; justify-self: start; margin-top: 10px; }
 }
 
 .grid .cover.blank, .cover.blank.big {
@@ -809,8 +842,10 @@ header { padding: 56px 16px 32px; }
   body:has(.cartbar.show) .chat { bottom: 100px; }
 }
 @media (max-width: 600px) {
-  .chat { right: 14px; bottom: 14px; }
-  .chat-btn { width: 52px; height: 52px; }
+  /* на телефоні менша: картки каталогу на всю ширину, і кнопка не повинна закривати назви й ціни */
+  .chat { right: 12px; bottom: 12px; }
+  .chat-btn { width: 44px; height: 44px; box-shadow: var(--gilt-shine), 0 6px 16px rgba(0, 0, 0, .35); }
+  .chat-btn svg { width: 20px; height: 20px; }
 }
 @media print { .chat { display: none; } }
 
