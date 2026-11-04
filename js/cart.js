@@ -123,8 +123,20 @@ function renderLines() {
     ul.append(li);
   }
   $('dlgTotal').textContent = money(cartTotal());
-  // передзамовлення відправляємо разом з рештою, коли надійде, — попереджаємо до надсилання
-  $('preNote').hidden = !lines.some(l => preorderPart(l.book, l.qty) > 0);
+  // передзамовлення відправляємо разом з рештою, коли надійде, — попереджаємо до надсилання.
+  // Покупець може сховати попередження хрестиком: тоді не показуємо його, доки відкрита вкладка
+  $('preNote').hidden = preNoteDismissed() || !lines.some(l => preorderPart(l.book, l.qty) > 0);
+}
+
+const PRE_NOTE_KEY = 'lib_store_pre_note_hidden';
+function preNoteDismissed() {
+  try { return sessionStorage.getItem(PRE_NOTE_KEY) === '1'; } catch { return preNoteHidden; }
+}
+let preNoteHidden = false; // запасний варіант, коли сховище браузера недоступне
+function dismissPreNote() {
+  preNoteHidden = true;
+  try { sessionStorage.setItem(PRE_NOTE_KEY, '1'); } catch {}
+  $('preNote').hidden = true;
 }
 
 // Кількість у списку замовлення: «−» до 1 (прибрати — хрестиком), «+» до наявності (під передзамовлення — без межі).

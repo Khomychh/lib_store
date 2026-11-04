@@ -124,6 +124,10 @@ $('openOrder').addEventListener('click', () => {
   $('dialog').showModal();
 });
 $('closeOrder').addEventListener('click', () => $('dialog').close());
+$('preNoteClose').addEventListener('click', () => {
+  dismissPreNote();
+  $('submitOrder').focus(); // кнопка зникла разом з попередженням — фокус на наступне, що можна натиснути
+});
 $('doneClose').addEventListener('click', () => $('dialog').close());
 $('orderForm').addEventListener('submit', submitOrder);
 

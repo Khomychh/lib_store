@@ -1055,6 +1055,15 @@ textarea { resize: vertical; min-height: 76px; }
   box-shadow: inset 3px 0 0 var(--gilt);
 }
 .pre-note[hidden] { display: none; }
+/* хрестик «сховати» — у правому верхньому куті; тексту лишаємо місце, щоб не налазив */
+.pre-note { position: relative; padding-right: 38px; }
+.pre-close {
+  position: absolute; top: 6px; right: 6px;
+  display: grid; place-items: center; width: 28px; height: 28px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer;
+}
+.pre-close:hover { background: color-mix(in srgb, var(--gilt) 25%, transparent); color: var(--ink); }
+.pre-close:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pre-note svg { flex: none; margin-top: 1px; color: var(--gilt); }
 .pre-note b { display: block; margin-bottom: 2px; font-weight: 700; }
 .check { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 400; font-size: 14px; cursor: pointer; }
