@@ -368,81 +368,49 @@ header { padding: 56px 16px 32px; }
 .skeleton .cover { box-shadow: none; background: var(--line); }
 .skeleton .cover::after { display: none; }
 
-/* Вітрина: книги стоять просто на фото, на скляній полиці.
-   Обкладинка — над полицею; під нею скляна планка з назвою й ціною. Планки сусідніх книг сходяться в одну полицю
-   на весь ряд, тому колонок рівно --cols (а не auto-fill): так видно, де ряд починається й закінчується.
-   Те саме число колонок і в полицях добірок — книги на головній стоять в одній сітці */
-:root { --cols: 5; } /* не більше п'яти: інакше обкладинки дрібні, а назви обрізаються */
+/* Вітрина: кожна книга — окрема скляна картка просто на фото: зверху обкладинка (фото чи тканина) на всю ширину,
+   під нею на склі назва й ціна. Між картками видно фото — суцільного скла під каталогом немає.
+   Колонок рівно --cols — так само й у полицях добірок, тож книги на головній стоять в одній сітці */
+:root { --cols: 5; --gap: 20px; } /* не більше п'яти: інакше обкладинки дрібні, а назви обрізаються */
 @media (max-width: 939px) { :root { --cols: 4; } }
 @media (max-width: 759px) { :root { --cols: 3; } }
-@media (max-width: 600px) { :root { --cols: 2; } }
+@media (max-width: 600px) { :root { --cols: 2; --gap: 10px; } }
 .list.grid {
-  --pad: 16px; /* відступ обкладинки від країв своєї ділянки полиці */
   display: grid;
   grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
-  gap: 36px 0;
+  gap: 28px var(--gap);
   padding: 0;
 }
 .grid .row {
-  position: relative; z-index: 0;
-  container-type: inline-size; /* 100cqw — ширина обкладинки: з неї рахується, де починається полиця */
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto 1fr auto;
   align-items: start;
   gap: 0 8px;
-  padding: 0 var(--pad) 14px;
+  padding: 0 14px 14px;
   border-bottom: 0;
-}
-.grid .row, .grid .row:hover, .grid .row.in-cart { background: none; }
-/* полиця: скло від низу обкладинки до низу картки; зверху на неї падає тінь від книги, знизу — товщина скла */
-.grid .row::before, .shelf-more::before {
-  content: ""; position: absolute; z-index: -1;
-  left: 0; right: 0; bottom: 0; top: calc(100cqw * 1.4 - 1px);
-  background: linear-gradient(rgba(0, 0, 0, .1), transparent 12px), var(--glass);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--glass);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
-  box-shadow: inset 0 1px 0 var(--glass-edge), inset 1px 0 0 var(--line), 0 16px 26px -14px rgba(0, 0, 0, .6);
-  transition: background-color .15s;
-}
-/* краї полиці заокруглені: перша й остання книга ряду (номери — за --cols); перша без роздільника ліворуч */
-.list.grid > :last-child::before, .shelf-row > :last-child::before { border-radius: 0 14px 14px 0; }
-.shelf-row > :first-child::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
-:root { --shelf-start: inset 0 1px 0 var(--glass-edge), 0 16px 26px -14px rgba(0, 0, 0, .6); }
-@media (min-width: 940px) {
-  .list.grid > :nth-child(5n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
-  .list.grid > :nth-child(5n)::before { border-radius: 0 14px 14px 0; }
-  .list.grid > :nth-child(5n + 1):last-child::before { border-radius: 14px; }
-}
-@media (min-width: 760px) and (max-width: 939px) {
-  .list.grid > :nth-child(4n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
-  .list.grid > :nth-child(4n)::before { border-radius: 0 14px 14px 0; }
-  .list.grid > :nth-child(4n + 1):last-child::before { border-radius: 14px; }
-}
-@media (min-width: 601px) and (max-width: 759px) {
-  .list.grid > :nth-child(3n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
-  .list.grid > :nth-child(3n)::before { border-radius: 0 14px 14px 0; }
-  .list.grid > :nth-child(3n + 1):last-child::before { border-radius: 14px; }
-}
-@media (max-width: 600px) {
-  .list.grid > :nth-child(2n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
-  .list.grid > :nth-child(2n)::before { border-radius: 0 14px 14px 0; }
-  .list.grid > :nth-child(2n + 1):last-child::before { border-radius: 14px; }
+  box-shadow: var(--shadow);
+  transition: background-color .15s, box-shadow .15s;
 }
 @media (hover: hover) {
-  .grid .row:hover::before { background-color: var(--glass-strong); }
+  .grid .row:hover { background: var(--glass-strong); }
 }
-/* у кошику — темна смужка по краю полиці під книгою */
-.grid .row.in-cart { box-shadow: none; }
-.grid .row.in-cart::after {
-  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
-  background: var(--accent);
+/* у кошику — картка в темній рамці */
+.grid .row.in-cart { background: var(--glass); box-shadow: 0 0 0 2px var(--accent), var(--shadow); }
+@media (hover: hover) {
+  .grid .row.in-cart:hover { background: var(--glass-strong); }
 }
+/* обкладинка — верх картки, від краю до краю */
 .grid .row .cover {
   grid-column: 1 / -1; grid-row: auto; align-self: auto;
-  width: 100%; height: auto; aspect-ratio: 5 / 7;
-  margin-bottom: 14px;
-  border-radius: 3px 6px 6px 3px;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, .3), 0 18px 30px -12px rgba(0, 0, 0, .7);
+  width: calc(100% + 28px); height: auto; aspect-ratio: 5 / 7;
+  margin: 0 -14px 12px;
+  border-radius: 0;
+  box-shadow: none;
 }
 .grid .row .info { grid-column: 1 / -1; margin-bottom: 10px; }
 .grid .row .title { font-size: 15px; }
@@ -529,7 +497,7 @@ header { padding: 56px 16px 32px; }
   /* меню відкриваються на всю ширину панелі, а не від своєї кнопки — інакше вилазять за край екрана */
   .sort, .filter { position: static; }
   .sort-menu, .filter-menu { left: 0; right: 0; min-width: 0; max-width: none; }
-  .list.grid { --pad: 10px; row-gap: 28px; }
+  .list.grid { row-gap: 16px; }
 }
 /* кругла, на всю висоту панелі, як сусідні кнопки (ті розтягуються своїми обгортками) */
 .view-btn { flex: none; width: 46px; height: auto; align-self: stretch; justify-content: center; padding: 0; }
@@ -642,24 +610,22 @@ header { padding: 56px 16px 32px; }
   color: var(--muted); font-size: 14px; line-height: 1.5;
   text-wrap: pretty;
 }
-/* книга на полиці добірки завширшки з колонку каталогу */
+/* книга на полиці добірки завширшки з колонку каталогу; ряд гортається вбік */
 .shelf-row {
-  --pad: 16px;
-  display: flex; gap: 0;
-  list-style: none; margin: 0; padding: 24px 0 26px;
+  display: flex; gap: var(--gap);
+  list-style: none; margin: 0; padding: 20px 0 28px;
   overflow-x: auto; overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
 }
 .shelf-row::-webkit-scrollbar { display: none; }
-.shelf-row > li { flex: 0 0 calc(100% / var(--cols)); scroll-snap-align: start; }
-/* полиця коротша за добірку — у кінці порожнє місце на полиці з посиланням на всю добірку */
-.shelf-more { position: relative; z-index: 0; container-type: inline-size; padding: 0 var(--pad); }
+.shelf-row > li { flex: 0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols)); scroll-snap-align: start; }
+/* добірка більша за полицю — останньою карткою посилання на всю добірку */
 .shelf-more a {
   display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
-  aspect-ratio: 5 / 7;
-  border: 1.5px dashed color-mix(in srgb, var(--glass-edge) 85%, transparent);
-  border-radius: 3px 6px 6px 3px;
+  height: 100%;
+  border: 1.5px dashed color-mix(in srgb, var(--muted) 45%, transparent);
+  border-radius: 14px;
   background: var(--glass);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
@@ -689,7 +655,7 @@ header { padding: 56px 16px 32px; }
   .shelf-desc { padding: 0 16px 12px; font-size: 13.5px; }
   /* дві книги й край третьої — видно, що полицю можна гортати */
   /* полиця гортається до самого краю екрана, а не обрізається на відступі сторінки */
-  .shelf-row { --pad: 10px; margin: 0 -16px; padding: 18px 16px 20px; scroll-padding: 0 16px; }
+  .shelf-row { margin: 0 -16px; padding: 16px 16px 24px; scroll-padding: 0 16px; }
   .shelf-row > li { flex-basis: 42%; }
   .coll-head { padding: 22px 20px 20px; }
 }
