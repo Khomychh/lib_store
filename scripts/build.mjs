@@ -196,7 +196,7 @@ function isbn13(raw) {
 
 // Розмітка товару для Google: книга з ціною, наявністю і станом
 function bookData(b) {
-  const formats = { 'тверда': 'https://schema.org/Hardcover', 'м’яка': 'https://schema.org/Paperback', "м'яка": 'https://schema.org/Paperback' };
+  const formats = { 'тверда': 'https://schema.org/Hardcover', 'суперобкладинка': 'https://schema.org/Hardcover', 'м’яка': 'https://schema.org/Paperback', "м'яка": 'https://schema.org/Paperback' };
   const data = {
     '@context': 'https://schema.org',
     '@type': ['Book', 'Product'],

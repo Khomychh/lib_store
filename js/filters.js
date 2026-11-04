@@ -6,7 +6,7 @@
 // У групі можна відмітити кілька (будь-яке з них), між групами — всі одразу
 const FACETS = [
   { key: 'condition', title: 'Стан', order: ['Нова', 'Вживана'] },
-  { key: 'binding', title: 'Обкладинка', order: ['Тверда', 'М’яка', 'Інтегральна'] },
+  { key: 'binding', title: 'Обкладинка', order: ['Тверда', 'Суперобкладинка', 'М’яка', 'Інтегральна'] },
 ];
 const picked = Object.fromEntries(FACETS.map(f => [f.key, new Set()]));
 

@@ -8,19 +8,20 @@
  *          «Позиції»    — один рядок на кожну книгу, пов'язаний номером замовлення
  */
 
-// ID таблиці з книгами: частина посилання між /d/ і /edit
-const CATALOG_ID = 'ВСТАВТЕ_ID_ТАБЛИЦІ_З_КНИГАМИ';
-// Назва аркуша з книгами; порожньо — перший аркуш
-const CATALOG_SHEET = '';
+// Налаштування — не тут, а у Властивостях скрипта (Налаштування проєкту → Властивості скрипта),
+// тож цей файл можна вставляти в редактор як є, нічого не правлячи:
+//   CATALOG_ID    — таблиця з книгами: ID (частина посилання між /d/ і /edit) або все посилання; обов'язково;
+//   CATALOG_SHEET — назва аркуша з книгами; немає — перший аркуш;
+//   PHOTOS_FOLDER — папка з фото на Google Диску: ID (частина посилання після /folders/) або все посилання;
+//                   немає — сайт без фото. Файл називається номером книги з колонки «№»:
+//                   15.jpg — обкладинка, 15-2.jpg, 15-3.jpg — ще фото;
+//   TELEGRAM_TOKEN, TELEGRAM_CHAT_ID — сповіщення про замовлення, див. нижче.
 // Аркуш з деревом категорій у таблиці з книгами: «Категорія» і «Батьківська» (порожньо — верхній рівень).
 // Створюється функцією setupCatalog; якщо аркуша немає — сайт працює без категорій
 const CATEGORIES_SHEET = 'Категорії';
 // Аркуш з добірками в таблиці з книгами: «Назва», «Опис», «Книги» (номери через кому, у потрібному порядку),
 // «Адреса» (необов'язково). Створюється функцією setupCatalog; якщо аркуша немає — сайт працює без добірок
 const COLLECTIONS_SHEET = 'Добірки';
-// ID папки на Google Диску з фото книг (частина посилання після /folders/); порожньо — без фото.
-// Файл називається номером книги з колонки «№»: 15.jpg — обкладинка, 15-2.jpg, 15-3.jpg — ще фото
-const PHOTOS_FOLDER = '';
 // Аркуші в цій (прив'язаній) таблиці; створюються самі
 const ORDERS_SHEET = 'Замовлення';
 const ITEMS_SHEET = 'Позиції';
@@ -74,15 +75,35 @@ function doGet() {
   return json_({ ok: true, books, categories: readCategories_(), collections: readCollections_(books) });
 }
 
+// Значення з Властивостей скрипта; читаються один раз за запуск
+let settings_;
+function setting_(name) {
+  if (!settings_) settings_ = PropertiesService.getScriptProperties().getProperties();
+  return String(settings_[name] || '').trim();
+}
+// ID з властивості, куди можна вписати й усе посилання: …/d/<ID>/edit, …/folders/<ID>?usp=…
+function settingId_(name) {
+  const value = setting_(name);
+  const m = value.match(/\/(?:d|folders)\/([\w-]+)/);
+  return m ? m[1] : value;
+}
+const photosFolder_ = () => settingId_('PHOTOS_FOLDER');
+
 function catalog_() {
-  return SpreadsheetApp.openById(CATALOG_ID);
+  const id = settingId_('CATALOG_ID');
+  if (!id) {
+    throw new Error('Не вказано таблицю з книгами: додайте CATALOG_ID у Властивості скрипта ' +
+      '(Налаштування проєкту → Властивості скрипта).');
+  }
+  return SpreadsheetApp.openById(id);
 }
 
 function catalogSheet_(ss) {
-  const sheet = CATALOG_SHEET ? ss.getSheetByName(CATALOG_SHEET) : ss.getSheets()[0];
+  const name = setting_('CATALOG_SHEET');
+  const sheet = name ? ss.getSheetByName(name) : ss.getSheets()[0];
   if (!sheet) {
     const names = ss.getSheets().map(s => `«${s.getName()}»`).join(', ');
-    throw new Error(`У таблиці з книгами немає аркуша «${CATALOG_SHEET}» (CATALOG_SHEET). Є аркуші: ${names}`);
+    throw new Error(`У таблиці з книгами немає аркуша «${name}» (властивість CATALOG_SHEET). Є аркуші: ${names}`);
   }
   // порожній чи службовий аркуш замість каталогу: у першому рядку мають бути заголовки, серед них «Назва»
   const head = sheet.getLastColumn()
@@ -90,7 +111,8 @@ function catalogSheet_(ss) {
     : [];
   if (head.indexOf('Назва') < 0) {
     throw new Error(`Аркуш «${sheet.getName()}» не схожий на каталог: у першому рядку немає заголовка «Назва». ` +
-      (CATALOG_SHEET ? 'Перевірте CATALOG_SHEET.' : 'Впишіть назву аркуша з книгами в CATALOG_SHEET або перетягніть цей аркуш першим.'));
+      (name ? 'Перевірте властивість CATALOG_SHEET.'
+        : 'Додайте у Властивості скрипта CATALOG_SHEET з назвою аркуша з книгами або перетягніть цей аркуш першим.'));
   }
   return sheet;
 }
@@ -175,7 +197,7 @@ function slug_(text) {
 const STRICT_FIELDS = ['Стан', 'Передзамовлення'];
 const FIELD_OPTIONS = {
   'Стан': ['Нова', 'Вживана'],
-  'Обкладинка': ['Тверда', 'М’яка', 'Інтегральна'],
+  'Обкладинка': ['Тверда', 'Суперобкладинка', 'М’яка', 'Інтегральна'],
   'Мова': ['Українська', 'Англійська', 'Російська'],
   // «Доступне» — книгу можна замовити понад наявність, а з К-сть 0 вона не зникає з сайту;
   // «Недоступне» чи порожньо — продається лише те, що є
@@ -190,9 +212,24 @@ const preorderOn_ = v => /^доступн/i.test(String(v).trim());
 //  - створює аркуш «Добірки» (назва, опис, номери книг, адреса сторінки);
 //  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Передзамовлення»,
 //    «Видавництво», «Акційна ціна», «ISBN»;
-//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова, передзамовлення — з FIELD_OPTIONS
+//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова, передзамовлення — з FIELD_OPTIONS.
+// Аркуш, перетворений на таблицю Google (Формат → Перетворити на таблицю), не дає міняти списки й формат у колонках
+// з типом — там тип колонки робить те саме. Такі кроки пропускаються (список — у журналі виконання), решта виконується
 function setupCatalog() {
   const ss = catalog_();
+  const skipped = [];
+  // Таблиця збирає зміни й застосовує їх пачкою аж у кінці запуску — тоді помилка вилетіла б уже після «Готово»
+  // і без пояснення. Тому кожен такий крок застосовуємо одразу (flush): спершу все, що було до нього
+  // (помилка там — справжня, її не ховаємо), потім сам крок — його помилку записуємо й ідемо далі
+  const format = (what, fn) => {
+    SpreadsheetApp.flush();
+    try {
+      fn();
+      SpreadsheetApp.flush();
+    } catch (err) {
+      skipped.push(`${what}: ${err.message}`);
+    }
+  };
   let sheet = ss.getSheetByName(CATEGORIES_SHEET);
   if (!sheet) {
     sheet = ss.insertSheet(CATEGORIES_SHEET, ss.getSheets().length);
@@ -205,7 +242,7 @@ function setupCatalog() {
     .setAllowInvalid(false)
     .setHelpText('Виберіть категорію з аркуша «Категорії»')
     .build();
-  sheet.getRange('B2:B').setDataValidation(list);
+  format('аркуш «Категорії», список у колонці «Батьківська»', () => sheet.getRange('B2:B').setDataValidation(list));
 
   if (!ss.getSheetByName(COLLECTIONS_SHEET)) {
     const coll = ss.insertSheet(COLLECTIONS_SHEET, ss.getSheets().length);
@@ -221,7 +258,7 @@ function setupCatalog() {
     coll.getRange('B2:B').setWrap(true);
   }
   // номери — як текст: інакше «15,42» таблиця вважає дробовим числом
-  ss.getSheetByName(COLLECTIONS_SHEET).getRange('C2:C').setNumberFormat('@');
+  format('аркуш «Добірки», колонка «Книги» як текст', () => ss.getSheetByName(COLLECTIONS_SHEET).getRange('C2:C').setNumberFormat('@'));
 
   const books = catalogSheet_(ss);
   const head = books.getRange(1, 1, 1, books.getLastColumn()).getValues()[0].map(h => String(h).trim());
@@ -235,34 +272,49 @@ function setupCatalog() {
       // аркуш, збережений з xlsx, має рівно стільки колонок, скільки було даних: за його межами
       // getRange падає з помилкою, і решта колонок не додається — тож спершу розширюємо аркуш
       if (col > books.getMaxColumns()) books.insertColumnsAfter(books.getMaxColumns(), col - books.getMaxColumns());
-      books.getRange(1, col).setValue(name).setFontWeight('bold');
+      books.getRange(1, col).setValue(name);
+      // у таблиці Google заголовки оформлює вона сама — жирний шрифт там може бути заборонений
+      format(`каталог, жирний заголовок «${name}»`, () => books.getRange(1, col).setFontWeight('bold'));
     }
     return col;
   };
 
-  books.getRange(2, column('Категорія'), rows, 1).setDataValidation(list);
+  const categoryCol = column('Категорія');
+  format('каталог, список у колонці «Категорія»', () => books.getRange(2, categoryCol, rows, 1).setDataValidation(list));
   Object.keys(FIELD_OPTIONS).forEach(name => {
-    books.getRange(2, column(name), rows, 1).setDataValidation(SpreadsheetApp.newDataValidation()
+    const col = column(name);
+    format(`каталог, список у колонці «${name}»`, () => books.getRange(2, col, rows, 1).setDataValidation(SpreadsheetApp.newDataValidation()
       .requireValueInList(FIELD_OPTIONS[name], true)
       .setAllowInvalid(STRICT_FIELDS.indexOf(name) < 0)
-      .build());
+      .build()));
   });
   column('Видавництво');
   column('Акційна ціна');
   // ISBN — як текст: інакше таблиця вважає його числом і з'їдає нуль на початку ISBN-10
-  books.getRange(2, column('ISBN'), rows, 1).setNumberFormat('@');
+  const isbnCol = column('ISBN');
+  format('каталог, колонка «ISBN» як текст', () => books.getRange(2, isbnCol, rows, 1).setNumberFormat('@'));
+  // решта змін — до звіту, щоб «Готово» означало, що справді все записано
+  SpreadsheetApp.flush();
+
+  if (skipped.length) {
+    console.warn('Пропущено (аркуш — таблиця Google з типами колонок; задайте тип колонки в самій таблиці):\n- ' +
+      skipped.join('\n- '));
+  } else {
+    console.log('Готово');
+  }
 }
 
 // Номер книги → ID файлів фото по порядку (перше — обкладинка). Обхід папки повільний,
 // тому список кешується на 10 хвилин: нове фото з'являється на сайті не одразу
 function photos_() {
-  if (!PHOTOS_FOLDER) return {};
+  const folder = photosFolder_();
+  if (!folder) return {};
   const cached = cacheGet_('photos');
   if (cached) return JSON.parse(cached);
 
   const found = {}; // номер книги → { порядковий номер фото → { file, date } }
   try {
-    const files = DriveApp.getFolderById(PHOTOS_FOLDER).getFiles();
+    const files = DriveApp.getFolderById(folder).getFiles();
     while (files.hasNext()) {
       const f = files.next();
       if (f.isTrashed() || !f.getMimeType().startsWith('image/')) continue;
@@ -711,7 +763,7 @@ function formInit() {
     languages: merge('Мова'),
     authors: formDistinct_(values, author),
     publishers: formDistinct_(values, col('Видавництво')),
-    photos: Boolean(PHOTOS_FOLDER),
+    photos: Boolean(photosFolder_()),
   };
 }
 
@@ -826,11 +878,12 @@ function formAddColumn_(sheet, head, name) {
 
 // Порядкові номери наявних фото книги: 15.jpg → 1, 15-3.jpg → 3
 function formPhotoNumbers_(id) {
-  if (!PHOTOS_FOLDER || !id) return [];
+  const folder = photosFolder_();
+  if (!folder || !id) return [];
   const key = String(id).toLowerCase();
   const numbers = [];
   // пошук Диска за початком назви; точний збіг перевіряємо самі (щоб 150.jpg не зарахувався книзі 15)
-  const files = DriveApp.getFolderById(PHOTOS_FOLDER).searchFiles(`title contains '${String(id).replace(/'/g, '')}'`);
+  const files = DriveApp.getFolderById(folder).searchFiles(`title contains '${String(id).replace(/'/g, '')}'`);
   while (files.hasNext()) {
     const f = files.next();
     if (f.isTrashed() || !f.getMimeType().startsWith('image/')) continue;
@@ -844,14 +897,15 @@ function formPhotoNumbers_(id) {
 // Додає фото книги в папку з наступним вільним номером (перше — 15.jpg, далі 15-2.jpg…).
 // base64 — JPEG, уже зменшений у браузері
 function formAddPhoto(id, base64) {
-  if (!PHOTOS_FOLDER) throw new Error('Папка з фото не налаштована (PHOTOS_FOLDER).');
+  const folder = photosFolder_();
+  if (!folder) throw new Error('Папка з фото не налаштована: додайте PHOTOS_FOLDER у Властивості скрипта.');
   if (!/^[\p{L}\p{N}_-]+$/u.test(String(id))) throw new Error('Неправильний № книги.');
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     const n = formPhotoNumbers_(id).reduce((max, x) => Math.max(max, x), 0) + 1;
     const name = n === 1 ? `${id}.jpg` : `${id}-${n}.jpg`;
-    DriveApp.getFolderById(PHOTOS_FOLDER)
+    DriveApp.getFolderById(folder)
       .createFile(Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', name));
     // скидаємо кеш списку фото, щоб сайт побачив нове одразу, а не за 10 хвилин
     try { CacheService.getScriptCache().remove('photos'); } catch (err) { console.error(err); }
