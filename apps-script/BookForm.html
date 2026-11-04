@@ -11,7 +11,7 @@
   * { box-sizing: border-box; }
   body { font: 13px/1.4 Arial, sans-serif; color: #202124; margin: 0; padding: 12px 16px 16px; }
   .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-  .bar input { flex: 1; }
+  .bar .combo { flex: 1; }
   h2 { font-size: 15px; margin: 4px 0 10px; }
   h2 small { font-weight: normal; color: #5f6368; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 12px; }
@@ -29,9 +29,21 @@
   .hint.ok { color: #188038; }
   .warn { background: #fef7e0; border: 1px solid #f9d77e; border-radius: 4px; padding: 6px 8px; margin: 8px 0 0; }
   .warn a { color: #1a73e8; cursor: pointer; text-decoration: underline; }
+
+  /* поле з пошуком по списку */
+  .combo { position: relative; }
+  .combo input { padding-right: 22px; }
+  .combo::after { content: '▾'; position: absolute; right: 8px; top: 6px; color: #5f6368; pointer-events: none; font-size: 11px; }
+  .dd { position: absolute; z-index: 10; left: 0; right: 0; top: 100%; margin-top: 2px; max-height: 240px; overflow-y: auto;
+        background: #fff; border: 1px solid #dadce0; border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.15); }
+  .dd .opt { padding: 5px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dd .opt.on, .dd .opt:hover { background: #e8f0fe; }
+  .dd .opt mark { background: none; color: inherit; font-weight: bold; }
+  .dd .more { padding: 4px 8px; color: #5f6368; font-size: 11px; }
+
   .photos { margin-top: 10px; }
   .thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-  .thumbs img { height: 70px; border-radius: 3px; border: 1px solid #dadce0; }
+  .thumbs img { height: 70px; border-radius: 3px; border: 1px solid #dadce0; cursor: pointer; }
   .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
   button { font: inherit; padding: 6px 14px; border-radius: 4px; border: 1px solid #dadce0; background: #fff; cursor: pointer; }
   button.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: bold; }
@@ -47,15 +59,10 @@
 
 <div id="app" hidden>
   <div class="bar">
-    <input id="search" list="bookList" placeholder="Знайти книгу: № або назва" autocomplete="off">
+    <input id="search" placeholder="Знайти книгу: №, назва або автор">
     <button id="openBtn">Відкрити</button>
     <button id="newBtn">Нова книга</button>
   </div>
-  <datalist id="bookList"></datalist>
-  <datalist id="authorList"></datalist>
-  <datalist id="publisherList"></datalist>
-  <datalist id="bindingList"></datalist>
-  <datalist id="languageList"></datalist>
 
   <h2 id="mode"></h2>
 
@@ -63,18 +70,18 @@
     <div class="grid">
       <div><label>№</label><input name="id"><div class="hint" data-for="id"></div></div>
       <div class="w2"><label>Назва <b>*</b></label><input name="title"><div class="hint" data-for="title"></div></div>
-      <div><label>Автор</label><input name="author" list="authorList"><div class="hint" data-for="author"></div></div>
+      <div><label>Автор</label><input name="author"><div class="hint" data-for="author"></div></div>
 
       <div><label>Ціна, грн <b>*</b></label><input name="price" inputmode="decimal"><div class="hint" data-for="price"></div></div>
       <div><label>Акційна ціна</label><input name="salePrice" inputmode="decimal"><div class="hint" data-for="salePrice"></div></div>
       <div><label>К-сть <b>*</b></label><input name="stock" inputmode="numeric"><div class="hint" data-for="stock"></div></div>
       <div><label>Стан</label><select name="condition"></select><div class="hint" data-for="condition"></div></div>
 
-      <div class="w2"><label>Категорія</label><select name="category"></select><div class="hint" data-for="category"></div></div>
-      <div><label>Обкладинка</label><input name="binding" list="bindingList"><div class="hint" data-for="binding"></div></div>
-      <div><label>Мова</label><input name="language" list="languageList"><div class="hint" data-for="language"></div></div>
+      <div class="w2"><label>Категорія</label><input name="category" placeholder="— без категорії —"><div class="hint" data-for="category"></div></div>
+      <div><label>Обкладинка</label><input name="binding"><div class="hint" data-for="binding"></div></div>
+      <div><label>Мова</label><input name="language"><div class="hint" data-for="language"></div></div>
 
-      <div class="w2"><label>Видавництво</label><input name="publisher" list="publisherList"><div class="hint" data-for="publisher"></div></div>
+      <div class="w2"><label>Видавництво</label><input name="publisher"><div class="hint" data-for="publisher"></div></div>
       <div><label>Рік</label><input name="year" inputmode="numeric"><div class="hint" data-for="year"></div></div>
       <div><label>Сторінки</label><input name="pages" inputmode="numeric"><div class="hint" data-for="pages"></div></div>
 
@@ -127,44 +134,145 @@ function setStatus(text, kind) {
   el.className = kind || '';
 }
 
-function fillList(id, values) {
-  $(id).innerHTML = '';
-  values.forEach(v => { const o = document.createElement('option'); o.value = v; $(id).appendChild(o); });
-}
-
 function bookLabel(b) {
   return `${b[0]} · ${b[1] ? b[1] + ' — ' : ''}${b[2]}`;
 }
 
-// ───── Списки ─────
+// ───── Поле з пошуком по списку ─────
 
-// Категорії деревом: дочірні під батьківською з відступом
-function fillCategories(extra) {
-  const sel = field('category');
-  sel.innerHTML = '<option value="">— без категорії —</option>';
-  const cats = data.categories;
-  const names = new Set(cats.map(c => c.name));
-  const children = {};
-  cats.forEach(c => {
-    const p = c.parent && names.has(c.parent) ? c.parent : '';
-    (children[p] = children[p] || []).push(c.name);
-  });
-  const walk = (parent, depth, seen) => (children[parent] || []).forEach(name => {
-    if (seen.has(name)) return; // захист від циклу в дереві
-    seen.add(name);
-    const o = document.createElement('option');
-    o.value = name;
-    o.textContent = '    '.repeat(depth) + name;
-    sel.appendChild(o);
-    walk(name, depth + 1, seen);
-  });
-  walk('', 0, new Set());
-  if (extra && !names.has(extra)) {
-    const o = document.createElement('option');
-    o.value = extra;
-    o.textContent = `${extra} (немає на аркуші «Категорії»)`;
-    sel.appendChild(o);
+// Для пошуку: регістр і різні апострофи не важливі
+const norm = s => String(s).toLowerCase().replace(/[’ʼ`‘]/g, "'").replace(/ё/g, 'е');
+const MAX_SHOWN = 80;
+
+// input — поле; source() — [{ value, label }]; onPick(option) — що робити з вибраним (типово — вписати value).
+// Клік чи фокус показує весь список, введення фільтрує: кожне слово запиту має бути в підписі, у будь-якому місці
+function combo(input, source, onPick) {
+  const wrap = document.createElement('div');
+  wrap.className = 'combo';
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+  input.autocomplete = 'off';
+  const dd = document.createElement('div');
+  dd.className = 'dd';
+  dd.hidden = true;
+  wrap.appendChild(dd);
+  let items = [];
+  let active = -1;
+
+  function render(query) {
+    const words = norm(query.trim()).split(/\s+/).filter(Boolean);
+    const all = source();
+    const found = words.length ? all.filter(o => { const t = norm(o.label); return words.every(w => t.includes(w)); }) : all;
+    // спершу ті, що починаються із запиту
+    if (words.length) {
+      const q = norm(query.trim());
+      found.sort((a, b) => (norm(b.label).startsWith(q) ? 1 : 0) - (norm(a.label).startsWith(q) ? 1 : 0));
+    }
+    items = found.slice(0, MAX_SHOWN);
+    dd.innerHTML = '';
+    if (!items.length) { dd.hidden = true; active = -1; return; }
+    items.forEach((o, i) => {
+      const d = document.createElement('div');
+      d.className = 'opt';
+      d.title = o.label;
+      d.appendChild(highlightWords(o.label, words));
+      d.onmousedown = e => { e.preventDefault(); pick(i); };
+      dd.appendChild(d);
+    });
+    if (found.length > MAX_SHOWN) {
+      const more = document.createElement('div');
+      more.className = 'more';
+      more.textContent = `…ще ${found.length - MAX_SHOWN}, уточніть запит`;
+      dd.appendChild(more);
+    }
+    dd.hidden = false;
+    setActive(words.length ? 0 : -1);
   }
+
+  function setActive(i) {
+    active = i;
+    [...dd.querySelectorAll('.opt')].forEach((el, j) => el.classList.toggle('on', j === i));
+    if (i >= 0) dd.children[i].scrollIntoView({ block: 'nearest' });
+  }
+
+  function pick(i) {
+    const o = items[i];
+    dd.hidden = true;
+    if (onPick) { onPick(o); return; }
+    input.value = o.value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  input.addEventListener('focus', () => render(''));
+  input.addEventListener('click', () => { if (dd.hidden) render(''); });
+  input.addEventListener('input', e => { if (e.isTrusted) render(input.value); });
+  input.addEventListener('blur', () => {
+    dd.hidden = true;
+    // вписали значення, яке відрізняється від наявного лише регістром — беремо наявне
+    const v = norm(input.value.trim());
+    if (!v || onPick) return;
+    const same = source().find(o => norm(o.value) === v);
+    if (same && same.value !== input.value) {
+      input.value = same.value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+  input.addEventListener('keydown', e => {
+    const open = !dd.hidden;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (!open) render(input.value);
+      else setActive(Math.min(active + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      if (open) { e.preventDefault(); setActive(Math.max(active - 1, 0)); }
+    } else if (e.key === 'Enter') {
+      if (open && active >= 0) { e.preventDefault(); e.stopImmediatePropagation(); pick(active); }
+    } else if (e.key === 'Escape') {
+      if (open) { e.preventDefault(); dd.hidden = true; }
+    } else if (e.key === 'Tab') {
+      // Tab по відфільтрованому списку — вибрати підсвічений, як в автодоповненні
+      if (open && active >= 0 && input.value.trim()) pick(active);
+    }
+  });
+}
+
+// Підпис з виділеними словами запиту
+function highlightWords(label, words) {
+  const frag = document.createDocumentFragment();
+  if (!words.length) { frag.append(label); return frag; }
+  const n = norm(label);
+  const marks = new Array(label.length).fill(false);
+  words.forEach(w => {
+    let i = n.indexOf(w);
+    while (i >= 0) { for (let k = i; k < i + w.length; k++) marks[k] = true; i = n.indexOf(w, i + w.length); }
+  });
+  let i = 0;
+  while (i < label.length) {
+    let j = i;
+    while (j < label.length && marks[j] === marks[i]) j++;
+    const part = label.slice(i, j);
+    if (marks[i]) { const m = document.createElement('mark'); m.textContent = part; frag.appendChild(m); }
+    else frag.append(part);
+    i = j;
+  }
+  return frag;
+}
+
+const plain = list => () => list().map(v => ({ value: v, label: v }));
+
+// Категорії зі шляхом: «Біблеїстика › Новий Завіт» — і шукається за будь-якою частиною шляху
+function categoryOptions() {
+  const byName = {};
+  data.categories.forEach(c => { byName[c.name] = c; });
+  const path = name => {
+    const parts = [];
+    const seen = new Set();
+    for (let c = byName[name]; c && !seen.has(c.name); c = byName[c.parent]) { seen.add(c.name); parts.unshift(c.name); }
+    return parts.join(' › ');
+  };
+  return data.categories.map(c => ({ value: c.name, label: path(c.name) }));
 }
 
 // extra — значення книги поза списком (старий запис): показуємо його, щоб збереження не стерло стан
@@ -175,26 +283,16 @@ function fillConditions(extra) {
   list.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
 }
 
-// Якщо вписане значення відрізняється від наявного лише регістром чи пробілами — беремо наявне,
-// щоб у фільтрах сайту не з'являлись «тверда» й «Тверда» окремо
+// Підказка під полем, де можна вписати своє значення
 const LISTS = { author: 'authors', publisher: 'publishers', binding: 'bindings', language: 'languages' };
-function normalize(name) {
-  const input = field(name);
-  const v = input.value.trim().replace(/\s+/g, ' ');
-  const key = v.toLowerCase();
-  const found = data[LISTS[name]].find(x => x.toLowerCase() === key);
-  input.value = found || v;
+function listHint(name) {
+  const v = field(name).value.trim();
+  const known = !v || data[LISTS[name]].some(x => norm(x) === norm(v));
   const hint = form.querySelector(`.hint[data-for="${name}"]`);
-  if (v && !found && (name === 'binding' || name === 'language')) {
-    hint.textContent = 'Нове значення — з’явиться у фільтрі окремим пунктом';
-    hint.className = 'hint';
-  } else if (v && !found && name === 'publisher') {
-    hint.textContent = 'Нове видавництво';
-    hint.className = 'hint';
-  } else {
-    hint.textContent = '';
-    hint.className = 'hint';
-  }
+  hint.className = 'hint';
+  hint.textContent = known ? ''
+    : name === 'binding' || name === 'language' ? 'Нове значення — з’явиться у фільтрі окремим пунктом'
+    : name === 'publisher' ? 'Нове видавництво' : 'Новий автор';
 }
 
 // ───── Перевірки ─────
@@ -221,7 +319,7 @@ function values() {
   return v;
 }
 
-// Повертає { поле: текст помилки }; попередження (не блокують) — окремо
+// Повертає { errors, warnings }: { поле: текст }. Попередження зберегти не заважають
 function check() {
   const v = values();
   const errors = {};
@@ -251,16 +349,20 @@ function check() {
     if (isbn13(v.isbn)) warnings.isbn = '✓ ISBN правильний';
     else warnings.isbn = 'ISBN з помилкою: перевірте цифри (зберегти можна, але в Google піде без коду)';
   }
+  if (v.category && data.categories.length && !data.categories.some(c => c.name === v.category)) {
+    errors.category = 'Виберіть категорію зі списку';
+  }
   return { errors, warnings };
 }
 
 function showCheck() {
   const { errors, warnings } = check();
-  ['id', 'title', 'price', 'salePrice', 'stock', 'year', 'pages', 'isbn'].forEach(k => {
+  ['id', 'title', 'price', 'salePrice', 'stock', 'year', 'pages', 'isbn', 'category'].forEach(k => {
     const hint = form.querySelector(`.hint[data-for="${k}"]`);
     const input = field(k);
     const touched = input.dataset.touched || input.value;
-    const err = touched && errors[k];
+    // категорію перевіряємо, коли з поля вийшли — інакше лається на кожну літеру пошуку
+    const err = touched && errors[k] && !(k === 'category' && document.activeElement === input);
     input.classList.toggle('bad', Boolean(err));
     if (err) { hint.textContent = errors[k]; hint.className = 'hint err'; }
     else if (warnings[k]) {
@@ -275,10 +377,10 @@ function showCheck() {
 // Схожа книга вже є в каталозі? Частіше треба збільшити її К-сть, а не додавати другий рядок
 function showDupes() {
   const box = $('#dupe');
-  const title = field('title').value.trim().toLowerCase();
+  const title = norm(field('title').value.trim());
   if (editing || title.length < 3) { box.hidden = true; return; }
-  const author = field('author').value.trim().toLowerCase();
-  const same = data.books.filter(b => b[2].toLowerCase() === title && (!author || !b[1] || b[1].toLowerCase() === author));
+  const author = norm(field('author').value.trim());
+  const same = data.books.filter(b => norm(b[2]) === title && (!author || !b[1] || norm(b[1]) === author));
   if (!same.length) { box.hidden = true; return; }
   box.innerHTML = '';
   box.append('Така книга вже є: ');
@@ -315,14 +417,17 @@ function clearPhotos() {
   $('#photoInput').value = '';
 }
 
-function newBook(keepSticky) {
-  const keep = {};
-  if (keepSticky) STICKY.forEach(k => { keep[k] = field(k).value; });
+function resetForm() {
   form.reset();
   FIELDS.forEach(k => { delete field(k).dataset.touched; field(k).classList.remove('bad'); });
   form.querySelectorAll('.hint').forEach(h => { h.textContent = ''; h.className = 'hint'; });
+}
+
+function newBook(keepSticky) {
+  const keep = {};
+  if (keepSticky) STICKY.forEach(k => { keep[k] = field(k).value; });
+  resetForm();
   editing = null;
-  fillCategories(keep.category);
   fillConditions();
   Object.keys(keep).forEach(k => { field(k).value = keep[k]; });
   field('id').value = data.nextId;
@@ -350,10 +455,8 @@ async function openBook(id) {
   setStatus('Відкриваю…');
   try {
     const book = await call('formGetBook', id);
-    form.reset();
-    FIELDS.forEach(k => { delete field(k).dataset.touched; });
+    resetForm();
     editing = book.id;
-    fillCategories(book.category);
     fillConditions(book.condition);
     FIELDS.forEach(k => { field(k).value = book[k]; });
     $('#photoInfo').textContent = data.photos ? `(уже є: ${book.photoCount}; нові додадуться після них)` : '';
@@ -362,6 +465,7 @@ async function openBook(id) {
     showCheck();
     dirty = false;
     $('#search').value = '';
+    $('#search').blur();
     setStatus('');
   } catch (err) {
     setStatus(err.message, 'err');
@@ -370,17 +474,18 @@ async function openBook(id) {
   }
 }
 
+// «Відкрити» чи Enter без вибору зі списку: точний № або єдиний збіг за назвою/автором
 function findFromSearch() {
   const q = $('#search').value.trim();
   if (!q) return;
   const id = q.split(' · ')[0].trim().toLowerCase();
   let book = data.books.find(b => b[0].toLowerCase() === id);
   if (!book) {
-    const ql = q.toLowerCase();
-    const matches = data.books.filter(b => b[2].toLowerCase().includes(ql) || b[1].toLowerCase().includes(ql));
+    const words = norm(q).split(/\s+/);
+    const matches = data.books.filter(b => { const t = norm(bookLabel(b)); return words.every(w => t.includes(w)); });
     if (matches.length === 1) book = matches[0];
     else {
-      setStatus(matches.length ? `Знайдено ${matches.length} — виберіть зі списку під полем пошуку` : 'Нічого не знайдено', 'err');
+      setStatus(matches.length ? `Знайдено ${matches.length} — виберіть зі списку` : 'Нічого не знайдено', 'err');
       return;
     }
   }
@@ -436,12 +541,11 @@ $('#photoInput').addEventListener('change', async e => {
 form.addEventListener('submit', async e => {
   e.preventDefault();
   if (busy) return;
+  if (document.activeElement) document.activeElement.blur(); // щоб спрацювало вирівнювання регістру в полях
   FIELDS.forEach(k => { field(k).dataset.touched = '1'; });
-  ['author', 'publisher', 'binding', 'language'].forEach(normalize);
   const errors = showCheck();
   if (Object.keys(errors).length) {
     setStatus('Виправте поля, позначені червоним.', 'err');
-    form.querySelector('.bad')?.focus();
     return;
   }
   busy = true;
@@ -486,19 +590,10 @@ function rememberBook(id, v) {
   const i = data.books.findIndex(b => b[0].toLowerCase() === String(id).toLowerCase());
   if (i >= 0) data.books[i] = row; else data.books.push(row);
   if (/^\d+$/.test(String(id))) data.nextId = Math.max(data.nextId, Number(id) + 1);
-  const add = (list, value) => {
-    if (value && !data[list].some(x => x.toLowerCase() === value.toLowerCase())) data[list].push(value);
-  };
-  add('authors', v.author); add('publishers', v.publisher); add('bindings', v.binding); add('languages', v.language);
-  fillLists();
-}
-
-function fillLists() {
-  fillList('#bookList', data.books.map(bookLabel));
-  fillList('#authorList', data.authors);
-  fillList('#publisherList', data.publishers);
-  fillList('#bindingList', data.bindings);
-  fillList('#languageList', data.languages);
+  Object.keys(LISTS).forEach(k => {
+    const list = data[LISTS[k]];
+    if (v[k] && !list.some(x => norm(x) === norm(v[k]))) list.push(v[k]);
+  });
 }
 
 // ───── Старт ─────
@@ -508,21 +603,23 @@ form.addEventListener('input', e => {
   if (e.target.name) e.target.dataset.touched = '1';
   showCheck();
 });
-['author', 'publisher', 'binding', 'language'].forEach(k => field(k).addEventListener('change', () => { normalize(k); showDupes(); }));
+form.addEventListener('focusout', e => { if (e.target.name === 'category') showCheck(); });
+Object.keys(LISTS).forEach(k => field(k).addEventListener('change', () => { listHint(k); showDupes(); }));
+
 $('#openBtn').onclick = findFromSearch;
-$('#search').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); findFromSearch(); } });
-// вибір зі списку підказок — одразу відкриваємо
-$('#search').addEventListener('input', e => {
-  if (!e.inputType || e.inputType === 'insertReplacementText') {
-    if (e.target.value.includes(' · ')) findFromSearch();
-  }
-});
 $('#newBtn').onclick = () => { if (!busy && canLeave()) { newBook(false); setStatus(''); } };
 
 call('formInit').then(d => {
   data = d;
-  fillLists();
-  fillConditions();
+  combo(field('author'), plain(() => data.authors));
+  combo(field('publisher'), plain(() => data.publishers));
+  combo(field('binding'), plain(() => data.bindings));
+  combo(field('language'), plain(() => data.languages));
+  if (data.categories.length) combo(field('category'), categoryOptions);
+  // пошук книги: вибір зі списку одразу відкриває її
+  combo($('#search'), () => data.books.map(b => ({ value: b[0], label: bookLabel(b) })), o => openBook(o.value));
+  $('#search').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); findFromSearch(); } });
+
   $('#photoBox').hidden = !data.photos;
   $('#loading').hidden = true;
   $('#app').hidden = false;
