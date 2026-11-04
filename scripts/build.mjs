@@ -141,8 +141,8 @@ function priceLines(b) {
 // Розмітка — як у картці книги (openBook і bookFacts у js/book.js): ліворуч книга й покупка, праворуч текст
 function bookArticle(b) {
   const photo = b.photos?.[0];
-  const facts = [['Видавництво', b.publisher], ['Рік видання', b.year], ['Сторінок', b.pages], ['Мова', b.language],
-    ['Обкладинка', b.binding], ['Стан', b.condition], ['ISBN', b.isbn]]
+  const facts = [['Мова', b.language], ['Стан', b.condition], ['Рік видання', b.year], ['Сторінок', b.pages],
+    ['Видавництво', b.publisher], ['Обкладинка', b.binding], ['ISBN', b.isbn]]
     .filter(([, v]) => v)
     .map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
   const desc = paragraphs(b.description).map(p => `<p>${esc(p)}</p>`).join('');
@@ -163,6 +163,7 @@ function bookArticle(b) {
       ${b.author ? `<p class="book-by">${esc(b.author)}</p>` : ''}
       ${facts ? `<dl class="facts">${facts}</dl>` : ''}
       ${desc ? `<div class="desc">${desc}</div>` : ''}
+      <aside class="ask" id="pageAsk" hidden></aside>
     </div>
   </article>`;
 }
@@ -330,9 +331,10 @@ function staticRow(b) {
   } else {
     cover = clothCover(b, 'cover blank', badges);
   }
-  const photos = b.photos?.length > 1 && b.photos.length + ' фото';
-  const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', photos].filter(Boolean).join(' · ');
-  const by = (b.author ? `<span class="author">${esc(b.author)}</span>` : '') + (meta ? (b.author ? ' · ' : '') + esc(meta) : '') +
+  // як у bookRow (js/catalog.js): автор, потім рік і сторінки
+  const rest = [b.year && b.year + ' р.', b.pages && b.pages + ' с.'].filter(Boolean).join(' · ');
+  const meta = rest ? `<span class="meta">${esc(rest)}</span>` : '';
+  const by = (b.author ? `<span class="author">${esc(b.author)}</span>` : '') + meta +
     (isUsed(b) ? `<span class="sr-only">, стан: ${esc(b.condition)}</span>` : '');
   return `<li class="row" data-id="${esc(b.id)}">${cover}` +
     `<div class="info"><a class="title" href="/book/${encodeURIComponent(b.id)}/">${esc(b.title)}</a><div class="byline">${by}</div></div>` +

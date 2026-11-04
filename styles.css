@@ -263,6 +263,8 @@ header { padding: 56px 16px 32px; }
 .row .title { font: 600 16.5px/1.35 Literata, Georgia, serif; }
 .byline { color: var(--muted); font-size: 13px; margin-top: 3px; }
 .byline .author { color: var(--accent); font-weight: 500; }
+/* у списку автор і решта — в одному рядку через крапку; на вітрині — двома рядками (нижче, .grid .byline) */
+.byline .author + .meta::before { content: " · "; }
 .meta { color: var(--muted); font-size: 13px; }
 .pricebox { text-align: right; }
 .price { font: 600 17px/1 Literata, Georgia, serif; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
@@ -432,7 +434,11 @@ header { padding: 56px 16px 32px; }
 }
 .grid .row .info { grid-column: 1 / -1; margin-bottom: 10px; }
 .grid .row .title { font-size: 15px; }
-.grid .byline { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid .byline { font-size: 12.5px; }
+/* вітрина: автор — окремим рядком, під ним дрібніше рік і сторінки; що не влазить — «…» */
+.grid .byline > .author, .grid .byline > .meta { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid .byline .author + .meta::before { content: none; }
+.grid .byline > .meta { margin-top: 2px; font-size: 12px; }
 .grid .pricebox { display: block; text-align: left; align-self: end; }
 .grid .ctrl { align-self: end; }
 /* картка знає свою ширину: на вузькій (телефон, полиця добірки) ціна й «− 1 +» поруч не вміщаються */
@@ -465,10 +471,10 @@ header { padding: 56px 16px 32px; }
   #list.grid .row .info { grid-column: 2 / -1; grid-row: 1; margin: 4px 0 10px; }
   #list.grid .row .title { font-size: 17px; line-height: 1.3; -webkit-line-clamp: 4; }
   /* автор і рік — до двох рядків, а не обрізані на першому */
-  #list.grid .byline {
-    margin-top: 6px; white-space: normal;
-    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-  }
+  /* на телефоні в картці є місце: автор і рядок з роком переносяться, а не обрізаються */
+  #list.grid .byline { margin-top: 6px; }
+  #list.grid .byline > .author, #list.grid .byline > .meta { white-space: normal; }
+  #list.grid .byline > .meta { margin-top: 3px; font-size: 12.5px; }
   #list.grid .pricebox { grid-column: 2; grid-row: 3; align-self: end; }
   #list.grid .price { font-size: 19px; }
   #list.grid .ctrl { grid-column: 3; grid-row: 3; align-self: end; }
@@ -1147,6 +1153,23 @@ dialog.book {
 .desc p { margin: 0 0 .9em; text-wrap: pretty; }
 .desc p:last-child { margin-bottom: 0; }
 .desc:empty { display: none; }
+/* «Є питання про цю книгу?» — під описом; без опису стоїть одразу під характеристиками */
+.ask { margin: 26px 48px 40px; padding: 16px 18px; border-radius: 14px; background: var(--accent-soft); max-width: 60ch; }
+.desc:not(:empty) + .ask { margin-top: 0; }
+.ask p { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: var(--muted); }
+.ask p b { display: block; color: var(--ink); font-size: 15px; margin-bottom: 2px; }
+.ask-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask-links a {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px 8px 12px; border-radius: 999px;
+  background: var(--menu); border: 1px solid var(--line);
+  color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 600;
+  transition: border-color .15s;
+}
+.ask-links a:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.ask-links a svg { flex: none; width: 18px; height: 18px; color: var(--accent); }
+/* у кнопці — лише назва; адреса й нік видно в меню чату */
+.ask-links small { display: none; }
 dialog.book > .x { position: absolute; top: 18px; right: 18px; z-index: 3; background: var(--glass-strong); }
 
 @media (max-width: 860px) {
@@ -1154,6 +1177,7 @@ dialog.book > .x { position: absolute; top: 18px; right: 18px; z-index: 3; backg
   .leaf-head { padding: 34px 72px 0 32px; }
   .facts { margin: 22px 32px 0; }
   .desc { padding: 22px 32px 32px; }
+  .ask { margin: 22px 32px 32px; }
   .stage { padding: 44px 40px 16px; }
   .buy { margin: 0 16px 16px 12px; }
 }
@@ -1207,6 +1231,7 @@ dialog.book > .x { position: absolute; top: 18px; right: 18px; z-index: 3; backg
   .book h2 { font-size: 25px; }
   .facts { margin: 20px 20px 0; grid-template-columns: 1fr 1fr; column-gap: 16px; }
   .desc { padding: 20px 20px 28px; font-size: 16px; }
+  .ask { margin: 20px 20px 28px; }
   .buy {
     position: sticky; bottom: 0; z-index: 2;
     margin: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
@@ -1305,6 +1330,7 @@ body[data-page]:not([data-book]) main { max-width: 752px; }
 .page-text { padding: 40px 48px 44px; min-width: 0; }
 .page-text .facts { margin: 26px 0 0; }
 .page-text .desc { padding: 26px 0 0; }
+.page-text .ask { margin: 26px 0 0; }
 .sold { color: var(--muted); font-weight: 500; }
 @media (max-width: 720px) {
   .book-page { grid-template-columns: minmax(0, 1fr); }

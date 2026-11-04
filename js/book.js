@@ -50,6 +50,8 @@ function openBook(b) {
     desc.append(el('p', null, text));
   }
 
+  fillAsk($('bookAsk'), b);
+
   $('bookPrice').replaceChildren(...priceLines(b));
   $('bookCtrl').replaceChildren(cartControl(b, el('div'), true));
 
@@ -63,11 +65,31 @@ function openBook(b) {
   dlg.scrollTop = 0;
 }
 
-// Що показуємо в таблиці характеристик картки. Той самий список — у bookArticle (scripts/build.mjs)
+// Що показуємо в таблиці характеристик картки. Спершу те, від чого залежить, чи купувати: мова й стан;
+// далі — бібліографія. Той самий список — у bookArticle (scripts/build.mjs)
 const bookFacts = b => [
-  ['Видавництво', b.publisher], ['Рік видання', b.year], ['Сторінок', b.pages], ['Мова', b.language],
-  ['Обкладинка', b.binding], ['Стан', b.condition], ['ISBN', b.isbn],
+  ['Мова', b.language], ['Стан', b.condition], ['Рік видання', b.year], ['Сторінок', b.pages],
+  ['Видавництво', b.publisher], ['Обкладинка', b.binding], ['ISBN', b.isbn],
 ].filter(([, v]) => v);
+
+// «Є питання про цю книгу?» під описом (а без опису — замість нього): ті самі Telegram і пошта, що в кнопці чату.
+// Лист одразу з темою — номер і назва книги, щоб не перепитувати, про яку мова
+function fillAsk(box, b) {
+  const links = [...$('chatMenu').querySelectorAll('a')].map(a => {
+    const link = a.cloneNode(true);
+    if (link.href.startsWith('mailto:')) {
+      link.href = a.getAttribute('href').split('?')[0] + '?subject=' + encodeURIComponent(`Питання про книгу №${b.id} «${b.title}»`);
+    }
+    return link;
+  });
+  const row = el('div', 'ask-links');
+  row.append(...links);
+  const text = el('p');
+  text.append(el('b', null, 'Є питання про цю книгу?'),
+    b.description ? ' Напишіть нам — відповімо.' : ' Напишіть нам — розповімо про зміст і стан, надішлемо більше фото.');
+  box.replaceChildren(text, row);
+  box.hidden = !links.length;
+}
 
 function drawPhotos() {
   const { photos } = shelf;

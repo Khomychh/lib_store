@@ -78,6 +78,7 @@ function drawPageBook() {
   }
   $('pagePrice').replaceChildren(...priceLines(b));
   $('pageCtrl').replaceChildren(cartControl(b, el('div'), true));
+  if ($('pageAsk')) fillAsk($('pageAsk'), b);
 }
 
 function cartLines() {
