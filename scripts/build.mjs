@@ -383,13 +383,12 @@ const descParas = c => paragraphs(c.description);
 function shelfHtml(c) {
   const n = c.list.length;
   const href = `/dobirka/${c.slug}/`;
-  const first = descParas(c)[0];
   const more = n > SHELF_MAX
     ? `<li class="shelf-more"><a href="${href}"><b>Ще ${n - SHELF_MAX}</b><span>Уся добірка</span>${ARROW(1)}</a></li>` : '';
   return `<section class="shelf glass" aria-labelledby="shelf-${c.slug}"><div class="shelf-head">` +
     `<h2 class="shelf-title" id="shelf-${c.slug}"><a href="${href}">${esc(c.name)}</a></h2>` +
-    `<a class="shelf-all" href="${href}" aria-label="Усі ${countText(n)} добірки «${esc(c.name)}»">Усі ${n}${ARROW(1)}</a></div>` +
-    (first ? `<p class="shelf-desc">${esc(first)}</p>` : '') +
+    `<a class="shelf-all" href="${href}" aria-label="Усі ${countText(n)} добірки «${esc(c.name)}»">Усі ${countText(n)}${ARROW(1)}</a></div>` +
+    // на вітрині лише назва; опис (якщо є в аркуші) — на сторінці добірки
     `<ul class="shelf-row grid">${c.list.slice(0, SHELF_MAX).map(staticRow).join('')}${more}</ul></section>`;
 }
 const collIntroHtml = c => `<div class="coll-intro" id="collIntro"><a class="back glass" href="/">${ARROW(-1)}Усі книги</a>` +

@@ -106,7 +106,7 @@ function shelfSection(c) {
   title.append(open(el('a', null, c.name)));
   const n = c.books.length;
   const all = open(el('a', 'shelf-all'), `Усі ${n} ${plural(n, 'книга', 'книги', 'книг')} добірки «${c.name}»`);
-  all.append(`Усі ${n}`, arrow(1));
+  all.append(`Усі ${n} ${plural(n, 'книга', 'книги', 'книг')}`, arrow(1));
   const nav = el('div', 'shelf-nav');
   const prev = el('button');
   const next = el('button');
@@ -118,9 +118,7 @@ function shelfSection(c) {
   nav.append(prev, next);
   head.append(title, nav, all);
   sec.append(head);
-
-  const first = (c.description || '').split(/\n+/).map(s => s.trim()).find(Boolean);
-  if (first) sec.append(el('p', 'shelf-desc', first));
+  // на вітрині лише назва; опис (якщо є в аркуші) — на сторінці добірки
 
   const row = el('ul', 'shelf-row grid');
   for (const id of c.books.slice(0, SHELF_MAX)) row.append(bookRow(byId.get(id), true));
