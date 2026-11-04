@@ -317,22 +317,41 @@ function priceLines(b) {
   return lines;
 }
 
-// Відтінки тканинних палітурок: [тканина, тиснення]. Книга завжди отримує той самий
+// Тканинні палітурки книг без фото: [тканина, тиснення, світла тканина?] і оформлення обкладинки.
+// Книга завжди отримує ту саму пару «тканина + оформлення» — за номером
 const CLOTHS = [
-  ['#2c2d30', '#d9d8d3'],
-  ['#45484d', '#e4e3de'],
-  ['#8a8c8f', '#f4f4f2'],
-  ['#e6e5e0', '#3a3b3e'],
-  ['#cfcdc6', '#2c2d30'],
+  ['#232427', '#cfc9b8'], // майже чорна, тиснення кольору старого золота
+  ['#34383d', '#e2dfd6'], // графіт
+  ['#4b4f55', '#ecebe5'], // сланець
+  ['#6e7175', '#f4f3ef'], // попіл
+  ['#a3a4a2', '#232427'], // сіра
+  ['#d6d2c7', '#2e3034', true], // льон
+  ['#e9e7e0', '#34363a', true], // слонова кістка
 ];
-const clothOf = id => CLOTHS[[...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % CLOTHS.length];
+// рамка, паперова наклейка з назвою, тиснені смуги, корінець іншою тканиною («напівпалітурка»)
+const LOOKS = ['frame', 'label', 'bands', 'quarter'];
+// номери йдуть підряд (15, 16, 17…) — перемішуємо біти, щоб сусідні книги не виходили однаковими
+function coverHash(id) {
+  let h = [...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39) >>> 0;
+  return (h ^ (h >>> 15)) >>> 0;
+}
+function clothOf(id) {
+  const h = coverHash(id);
+  const [cloth, stamp, light] = CLOTHS[h % CLOTHS.length];
+  return { cloth, stamp, tone: light ? 'light' : 'dark', look: LOOKS[Math.floor(h / CLOTHS.length) % LOOKS.length] };
+}
+// Ті самі списки — у scripts/build.mjs (clothCover)
 
 // Тканинна палітурка книги без фото: колір тканини за номером книги, назва й автор тисненням.
 // Та сама — на вітрині і великою на лівій сторінці картки книги (js/book.js)
 function paintCloth(box, b) {
-  const [cloth, stamp] = clothOf(b.id);
+  const { cloth, stamp, tone, look } = clothOf(b.id);
   box.style.setProperty('--cloth', cloth);
   box.style.setProperty('--stamp', stamp);
+  box.dataset.tone = tone;
+  box.dataset.look = look;
   box.replaceChildren(
     el('span', 'cover-letter', (b.title || '').trim().charAt(0).toUpperCase()),
     el('span', 'cover-title', b.title),

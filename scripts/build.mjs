@@ -277,12 +277,36 @@ const store = {
 // Google бачить книги й посилання на їхні сторінки без JavaScript, а покупець — книги замість заглушок,
 // поки скрипт вантажить каталог; тоді скрипт малює список наново (js/catalog.js, init).
 // Розмітка — та сама, що в bookRow/bookCover (js/catalog.js) для вітрини: міняєте там — міняйте й тут
-const CLOTHS = [['#2c2d30', '#d9d8d3'], ['#45484d', '#e4e3de'], ['#8a8c8f', '#f4f4f2'], ['#e6e5e0', '#3a3b3e'], ['#cfcdc6', '#2c2d30']];
-const clothOf = id => CLOTHS[[...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % CLOTHS.length];
+// Як у js/catalog.js (CLOTHS, LOOKS, clothOf) — міняєте там, міняйте й тут.
+// Тканинні палітурки книг без фото: [тканина, тиснення, світла тканина?] і оформлення обкладинки.
+// Книга завжди отримує ту саму пару «тканина + оформлення» — за номером
+const CLOTHS = [
+  ['#232427', '#cfc9b8'], // майже чорна, тиснення кольору старого золота
+  ['#34383d', '#e2dfd6'], // графіт
+  ['#4b4f55', '#ecebe5'], // сланець
+  ['#6e7175', '#f4f3ef'], // попіл
+  ['#a3a4a2', '#232427'], // сіра
+  ['#d6d2c7', '#2e3034', true], // льон
+  ['#e9e7e0', '#34363a', true], // слонова кістка
+];
+// рамка, паперова наклейка з назвою, тиснені смуги, корінець іншою тканиною («напівпалітурка»)
+const LOOKS = ['frame', 'label', 'bands', 'quarter'];
+// номери йдуть підряд (15, 16, 17…) — перемішуємо біти, щоб сусідні книги не виходили однаковими
+function coverHash(id) {
+  let h = [...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7);
+  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0;
+  h = Math.imul(h ^ (h >>> 12), 0x297a2d39) >>> 0;
+  return (h ^ (h >>> 15)) >>> 0;
+}
+function clothOf(id) {
+  const h = coverHash(id);
+  const [cloth, stamp, light] = CLOTHS[h % CLOTHS.length];
+  return { cloth, stamp, tone: light ? 'light' : 'dark', look: LOOKS[Math.floor(h / CLOTHS.length) % LOOKS.length] };
+}
 // тканинна палітурка книги без фото — як paintCloth у js/catalog.js
 function clothCover(b, cls, badges = '') {
-  const [cloth, stamp] = clothOf(b.id);
-  return `<div class="${cls}" aria-hidden="true" style="--cloth: ${cloth}; --stamp: ${stamp};">` +
+  const { cloth, stamp, tone, look } = clothOf(b.id);
+  return `<div class="${cls}" aria-hidden="true" data-tone="${tone}" data-look="${look}" style="--cloth: ${cloth}; --stamp: ${stamp};">` +
     `<span class="cover-letter">${esc((b.title || '').trim().charAt(0).toUpperCase())}</span>` +
     `<span class="cover-title">${esc(b.title)}</span><span class="cover-author">${esc(b.author || '')}</span>${badges}</div>`;
 }
