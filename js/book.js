@@ -12,25 +12,46 @@ function openBook(b) {
   $('bookTitle').textContent = b.title;
 
   const by = $('bookBy');
-  by.textContent = '';
-  if (b.author) by.append(el('span', 'author', b.author));
-  const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.'].filter(Boolean).join(' · ');
-  if (meta) by.append((b.author ? ' · ' : '') + meta);
+  by.textContent = b.author || '';
+  by.hidden = !b.author;
+
+  // шлях категорії над назвою: «Богослов'я › Етика»; клік показує в каталозі всі книги цієї категорії
+  const crumbs = $('bookCat');
+  crumbs.textContent = '';
+  const lineage = b.category ? [...(cats.get(b.category)?.lineage || [b.category])].reverse() : [];
+  lineage.forEach((name, i) => {
+    if (i) crumbs.append(el('span', 'sep', '›'));
+    const a = el('a', null, name);
+    a.href = '/#cat=' + encodeURIComponent(name);
+    // на головній — без переходу: закриваємо картку й вибираємо категорію; на окремих сторінках посилання веде на головну
+    a.onclick = e => {
+      if (document.body.hasAttribute('data-page')) return;
+      e.preventDefault();
+      selectCat(name);
+      $('book').close();
+    };
+    crumbs.append(a);
+  });
+  crumbs.hidden = !lineage.length;
+
+  // характеристики — сіткою «назва над значенням»; порожні не показуємо
+  const facts = $('bookFacts');
+  facts.textContent = '';
+  for (const [label, value] of bookFacts(b)) {
+    const cell = el('div');
+    cell.append(el('dt', null, label), el('dd', null, value));
+    facts.append(cell);
+  }
 
   // абзаци опису — за переносами рядків у клітинці таблиці
   const desc = $('bookDesc');
   desc.textContent = '';
-  const facts = $('bookFacts');
-  facts.textContent = '';
-  for (const [label, value] of [
-    ['Видавництво', b.publisher], ['Мова', b.language], ['Обкладинка', b.binding], ['Стан', b.condition], ['ISBN', b.isbn],
-  ]) if (value) facts.append(el('dt', null, label), el('dd', null, value));
   for (const text of (b.description || '').split(/\n+/).map(s => s.trim()).filter(Boolean)) {
     desc.append(el('p', null, text));
   }
 
   $('bookPrice').replaceChildren(...priceLines(b));
-  $('bookCtrl').replaceChildren(cartControl(b, el('div')));
+  $('bookCtrl').replaceChildren(cartControl(b, el('div'), true));
 
   drawPhotos();
   // від поточної адреси, а не відносно: на сторінках книг стоїть <base href="/">, і '#book-…' вело б на головну
@@ -39,7 +60,14 @@ function openBook(b) {
   if (!dlg.open) dlg.showModal();
   dlg.querySelector('.leaf-text').scrollTop = 0;
   dlg.querySelector('.spread').scrollTop = 0;
+  dlg.scrollTop = 0;
 }
+
+// Що показуємо в таблиці характеристик картки. Той самий список — у bookArticle (scripts/build.mjs)
+const bookFacts = b => [
+  ['Видавництво', b.publisher], ['Рік видання', b.year], ['Сторінок', b.pages], ['Мова', b.language],
+  ['Обкладинка', b.binding], ['Стан', b.condition], ['ISBN', b.isbn],
+].filter(([, v]) => v);
 
 function drawPhotos() {
   const { photos } = shelf;

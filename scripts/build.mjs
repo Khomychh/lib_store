@@ -136,26 +136,31 @@ function priceLines(b) {
   return was + price + `<div class="stock">в наявності: ${b.stock}</div>`;
 }
 
+// Розмітка — як у картці книги (openBook і bookFacts у js/book.js): ліворуч книга й покупка, праворуч текст
 function bookArticle(b) {
   const photo = b.photos?.[0];
-  const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.'].filter(Boolean).join(' · ');
-  const by = (b.author ? `<span class="author">${esc(b.author)}</span>` : '') + (b.author && meta ? ' · ' : '') + esc(meta);
-  const facts = [['Видавництво', b.publisher], ['Мова', b.language], ['Обкладинка', b.binding], ['Стан', b.condition], ['ISBN', b.isbn]]
+  const facts = [['Видавництво', b.publisher], ['Рік видання', b.year], ['Сторінок', b.pages], ['Мова', b.language],
+    ['Обкладинка', b.binding], ['Стан', b.condition], ['ISBN', b.isbn]]
     .filter(([, v]) => v)
-    .map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
+    .map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
   const desc = paragraphs(b.description).map(p => `<p>${esc(p)}</p>`).join('');
+  const crumbs = categoryLineage(b.category)
+    .map(name => `<a href="/#cat=${encodeURIComponent(name)}">${esc(name)}</a>`).join('<span class="sep">›</span>');
   return `<a class="back glass" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Усі книги</a>
   <article class="book-page glass">
-    <div class="page-photo">${photo
-      ? `<img src="${photoUrl(photo, 800)}" alt="${esc(b.title)}" referrerpolicy="no-referrer">`
-      // без фото — тканинна палітурка, як на вітрині і в картці (paintCloth у js/catalog.js)
-      : clothCover(b, 'cover blank big')}</div>
+    <div class="page-side"><div class="page-hold">
+      <div class="page-photo">${photo
+        ? `<img src="${photoUrl(photo, 800)}" alt="${esc(b.title)}" referrerpolicy="no-referrer">`
+        // без фото — тканинна палітурка, як на вітрині і в картці (paintCloth у js/catalog.js)
+        : clothCover(b, 'cover blank big')}</div>
+      <div class="page-buy"><div id="pagePrice">${priceLines(b)}</div><div id="pageCtrl"></div></div>
+    </div></div>
     <div class="page-text">
+      ${crumbs ? `<nav class="crumbs" aria-label="Категорія">${crumbs}</nav>` : ''}
       <h1>${esc(b.title)}</h1>
-      ${by ? `<p class="book-by">${by}</p>` : ''}
+      ${b.author ? `<p class="book-by">${esc(b.author)}</p>` : ''}
       ${facts ? `<dl class="facts">${facts}</dl>` : ''}
       ${desc ? `<div class="desc">${desc}</div>` : ''}
-      <div class="page-buy"><div id="pagePrice">${priceLines(b)}</div><div id="pageCtrl"></div></div>
     </div>
   </article>`;
 }
@@ -221,6 +226,13 @@ function bookData(b) {
 
 // ---------- збирання ----------
 const catalog = await fetchCatalog();
+// шлях категорії від верхнього рівня: ['Богослов'я', 'Етика']; захист від кола в аркуші «Категорії»
+const parentOf = new Map((catalog.categories || []).map(c => [String(c.name || '').trim(), String(c.parent || '').trim()]));
+function categoryLineage(name) {
+  const path = [];
+  for (let n = name; n && !path.includes(n); n = parentOf.get(n)) path.unshift(n);
+  return path;
+}
 const seen = new Set();
 const books = catalog.books.filter(b => {
   // номер книги стає частиною адреси — дозволяємо лише безпечні символи
@@ -428,14 +440,7 @@ writeFileSync(join(OUT, 'sitemap.xml'), [
 // ---------- файл товарів для Google Merchant Center ----------
 // Формат — RSS 2.0 з полями Google (https://support.google.com/merchants/answer/7052112).
 // Лише книги з фото: без фото Google товар не покаже. Решта додасться сама, коли з'являться фото
-const categoryPath = (() => {
-  const parent = new Map((catalog.categories || []).map(c => [c.name, c.parent || '']));
-  return name => {
-    const path = [];
-    for (let n = name; n && !path.includes(n); n = parent.get(n)) path.unshift(n);
-    return path.join(' > ');
-  };
-})();
+const categoryPath = name => categoryLineage(name).join(' > ');
 const gPrice = n => `${n.toFixed(2)} UAH`;
 // опис товару: без ціни й «доставки» — Google не приймає рекламних фраз в описі
 const sentence = s => /[.!?…]$/.test(s) ? s : s + '.'; // «Бинцаровский Д.» — без другої крапки

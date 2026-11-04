@@ -95,23 +95,39 @@
   <button class="btn" id="openOrder">Оформити</button>
 </div>
 
-<dialog id="dialog">
+<dialog id="dialog" class="order" aria-labelledby="orderTitle">
   <form class="dlg" id="orderForm" method="dialog" novalidate>
     <div id="orderBody">
       <div class="dlg-head">
-        <h2>Ваше замовлення</h2>
-        <button type="button" class="x" id="closeOrder" aria-label="Закрити">×</button>
+        <h2 id="orderTitle">Оформлення замовлення</h2>
+        <button type="button" class="x" id="closeOrder" aria-label="Закрити"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
-      <ul class="lines" id="lines"></ul>
-      <div class="total"><span>Разом</span><b id="dlgTotal"></b></div>
-      <p class="section">Контактні дані</p>
+
+      <!-- на ПК підсумок праворуч і прилипає; на телефоні його частини розходяться: книги згори, сума й кнопка — смугою знизу -->
+      <aside class="order-sum" aria-label="Підсумок замовлення">
+        <div class="order-lines">
+          <p class="sum-title" id="linesCount"></p>
+          <ul class="lines" id="lines"></ul>
+        </div>
+        <div class="order-pay">
+          <div class="total"><span>Разом</span><b id="dlgTotal"></b></div>
+          <div class="msg error" id="formMsg" role="alert"></div>
+          <button type="submit" class="btn" id="submitOrder">Надіслати замовлення</button>
+        </div>
+      </aside>
+
+      <div class="order-form">
+      <section class="step" aria-labelledby="step1">
+      <h3 class="step-title" id="step1"><span class="n" aria-hidden="true">1</span>Контактні дані</h3>
       <div class="form">
         <label>Прізвище та ім’я *<input name="name" autocomplete="name" maxlength="100" aria-describedby="err-name"><span class="err" id="err-name"></span></label>
         <label>Телефон *<input name="phone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+380 67 123 45 67" maxlength="20" aria-describedby="err-phone"><span class="err" id="err-phone"></span></label>
         <label class="full"><span>Email <span class="hint">(необов’язково)</span></span><input name="email" type="email" autocomplete="email" maxlength="100" aria-describedby="err-email"><span class="err" id="err-email"></span></label>
       </div>
+      </section>
 
-      <p class="section">Доставка</p>
+      <section class="step" aria-labelledby="step2">
+      <h3 class="step-title" id="step2"><span class="n" aria-hidden="true">2</span>Доставка</h3>
       <div class="choices" role="radiogroup" aria-label="Спосіб доставки">
         <label class="choice"><input type="radio" name="method" value="np_branch" checked><span><b>Нова пошта</b><small>у відділення</small></span></label>
         <label class="choice"><input type="radio" name="method" value="np_locker"><span><b>Нова пошта</b><small>у поштомат</small></span></label>
@@ -135,8 +151,10 @@
         <label data-recipient hidden>Прізвище та ім’я отримувача *<input name="rname" maxlength="100" aria-describedby="err-rname"><span class="err" id="err-rname"></span></label>
         <label data-recipient hidden>Телефон отримувача *<input name="rphone" type="tel" inputmode="tel" placeholder="+380 67 123 45 67" maxlength="20" aria-describedby="err-rphone"><span class="err" id="err-rphone"></span></label>
       </div>
+      </section>
 
-      <p class="section">Оплата</p>
+      <section class="step" aria-labelledby="step3">
+      <h3 class="step-title" id="step3"><span class="n" aria-hidden="true">3</span>Оплата</h3>
       <div class="choices" role="radiogroup" aria-label="Спосіб оплати">
         <label class="choice"><input type="radio" name="payment" value="cod" checked><span><b>При отриманні</b><small id="codSub">накладений платіж</small></span></label>
         <label class="choice"><input type="radio" name="payment" value="prepay"><span><b>Передоплата</b><small>на картку</small></span></label>
@@ -147,13 +165,11 @@
         <label class="full"><span>Коментар <span class="hint">(необов’язково)</span></span><textarea name="comment" maxlength="500"></textarea><span class="counter hint" id="commentCount"></span></label>
         <input class="trap" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
       </div>
-      <div class="msg error" id="formMsg"></div>
-      <div class="actions">
-        <button type="submit" class="btn" id="submitOrder">Надіслати замовлення</button>
+      </section>
       </div>
     </div>
     <div id="orderDone" class="done" hidden>
-      <div class="check">✓</div>
+      <div class="check" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg></div>
       <h2>Дякуємо!</h2>
       <p id="doneText"></p>
       <button type="button" class="btn" id="doneClose">Добре</button>
@@ -167,25 +183,27 @@
       <div class="stage" id="bookStage">
         <img id="bookImg" alt="" referrerpolicy="no-referrer">
         <div class="cover blank big" id="bookCloth" aria-hidden="true" hidden></div>
-        <button type="button" class="nav prev" id="bookPrev" aria-label="Попереднє фото">‹</button>
-        <button type="button" class="nav next" id="bookNext" aria-label="Наступне фото">›</button>
+        <button type="button" class="nav prev" id="bookPrev" aria-label="Попереднє фото"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+        <button type="button" class="nav next" id="bookNext" aria-label="Наступне фото"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
       </div>
       <div class="thumbs" id="bookThumbs"></div>
     </section>
+    <!-- ліворуч: книга і все для покупки; праворуч гортається текст. На телефоні все в одну колонку, ціна — смугою знизу -->
     <section class="leaf-text">
       <div class="leaf-head">
+        <nav class="crumbs" id="bookCat" aria-label="Категорія"></nav>
         <h2 id="bookTitle"></h2>
         <p class="book-by" id="bookBy"></p>
       </div>
       <dl class="facts" id="bookFacts"></dl>
       <div class="desc" id="bookDesc"></div>
-      <div class="buy">
-        <div id="bookPrice"></div>
-        <div id="bookCtrl"></div>
-      </div>
     </section>
+    <div class="buy">
+      <div class="buy-price" id="bookPrice"></div>
+      <div class="buy-ctrl" id="bookCtrl"></div>
+    </div>
   </div>
-  <button type="button" class="x" id="bookClose" aria-label="Закрити" autofocus>×</button>
+  <button type="button" class="x" id="bookClose" aria-label="Закрити" autofocus><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
 </dialog>
 
 <!-- порядок важливий: скрипти мають спільні змінні, app.js запускає все -->

@@ -523,10 +523,12 @@ header { padding: 56px 16px 32px; }
 .cartbar .btn { white-space: nowrap; background: #f4f4f2; color: #1c1d1f; }
 .cartbar .btn:hover { background: #ffffff; }
 
+/* ---------- Вікна: скляні аркуші над затемненим фото ----------
+   На ПК — по центру; на телефоні — аркуш, що виїжджає знизу на всю ширину */
 dialog {
-  width: min(560px, calc(100% - 24px));
-  max-height: calc(100% - 24px);
-  border: 1px solid var(--glass-edge); border-radius: 24px; padding: 0;
+  width: min(560px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  border: 1px solid var(--glass-edge); border-radius: 26px; padding: 0;
   background: var(--glass-strong); color: var(--ink);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
@@ -535,36 +537,97 @@ dialog {
   scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent;
   overscroll-behavior: contain;
 }
-dialog[open] { animation: rise .2s ease; }
+dialog[open] { animation: rise .22s cubic-bezier(.2, .8, .2, 1); }
 /* поки відкрите вікно, сторінка під ним не гортається (інакше на телефоні вона їде під пальцем) */
 html:has(dialog[open]) { overflow: hidden; }
-@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
-dialog::backdrop { background: var(--backdrop); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-.dlg { padding: 24px; }
-.dlg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.dlg h2 { font: 600 25px/1.2 Literata, Georgia, serif; margin: 0; }
-.x { background: none; border: 0; font-size: 26px; line-height: 1; color: var(--muted); cursor: pointer; padding: 4px 8px; border-radius: 10px; }
-.x:hover { background: var(--accent-soft); }
-.lines { list-style: none; margin: 0; padding: 0; }
-.lines li { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
-.lines .title { -webkit-line-clamp: 1; font: 600 14.5px/1.35 Literata, Georgia, serif; }
-.lines .remove { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 20px; padding: 2px 6px; border-radius: 8px; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+@keyframes sheet { from { transform: translateY(100%); } }
+dialog::backdrop { background: var(--backdrop); -webkit-backdrop-filter: blur(8px) grayscale(.3); backdrop-filter: blur(8px) grayscale(.3); }
+
+/* Кнопка «закрити»: кругла скляна, однакова в обох вікнах */
+.x {
+  flex: none; display: grid; place-items: center;
+  width: 40px; height: 40px; padding: 0;
+  border: 1px solid var(--line); border-radius: 50%;
+  background: var(--glass-field); color: var(--ink);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.x:hover { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+
+.dlg { padding: 0; }
+.dlg-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.dlg h2 { font: 600 26px/1.2 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0; }
+
+/* ---------- Замовлення: ліворуч три кроки, праворуч підсумок, що лишається на місці ---------- */
+dialog.order { width: min(1000px, calc(100% - 32px)); }
+#orderBody:not([hidden]) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-areas: "head head" "form sum";
+  column-gap: 8px;
+}
+.order .dlg-head { grid-area: head; padding: 26px 26px 10px 36px; }
+.order-form { grid-area: form; padding: 10px 28px 36px 36px; }
+.order-sum {
+  grid-area: sum; align-self: start;
+  position: sticky; top: 16px;
+  margin: 8px 24px 28px 0;
+  border: 1px solid var(--line); border-radius: 20px;
+  background: var(--stage);
+  overflow: hidden;
+}
+.order-lines { padding: 18px 18px 6px; }
+.sum-title { margin: 0 0 4px; color: var(--muted); font-size: 13px; font-weight: 500; }
+.order-pay { padding: 14px 18px 18px; border-top: 1px solid var(--line); }
+.order-pay .btn { width: 100%; padding: 14px 22px; font-size: 15.5px; }
+
+.lines { list-style: none; margin: 0; padding: 0; max-height: 46dvh; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; }
+.lines li {
+  display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start;
+  padding: 12px 0; border-top: 1px solid var(--line);
+}
+.lines li:first-child { border-top: 0; }
+.lines .cover { width: 34px; height: 48px; }
+.lines .cover.blank { font-size: 15px; }
+.lines .title { -webkit-line-clamp: 2; font: 600 14px/1.3 Literata, Georgia, serif; }
+.lines .meta { font-size: 12.5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* сума, під нею «прибрати» */
+.line-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.lines .sum { font: 600 14.5px/1.3 Literata, Georgia, serif; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
+.lines .remove {
+  display: grid; place-items: center; width: 26px; height: 26px; padding: 0;
+  background: none; border: 0; border-radius: 50%; color: var(--muted); cursor: pointer;
+}
 .lines .remove:hover { color: var(--danger); background: var(--accent-soft); }
-.total { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 22px; }
-.total b { font: 600 22px Literata, Georgia, serif; }
-.section { font: 600 17px/1.3 Literata, Georgia, serif; color: var(--ink); margin: 0 0 12px; }
-.form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.total { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 14px; }
+.total span { color: var(--muted); font-weight: 500; }
+.total b { font: 600 26px/1 Literata, Georgia, serif; font-variant-numeric: lining-nums tabular-nums; }
+
+/* Кроки форми — справжня послідовність, тому з номерами */
+.step + .step { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line); }
+.step-title {
+  display: flex; align-items: center; gap: 12px;
+  font: 600 19px/1.3 Literata, Georgia, serif; margin: 0 0 16px;
+}
+.step-title .n {
+  flex: none; display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+  font: 600 13.5px/1 Onest, system-ui, sans-serif;
+}
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
 .form .full { grid-column: 1 / -1; }
-@media (max-width: 520px) { .form { grid-template-columns: 1fr; } .dlg { padding: 18px; } }
-label { display: grid; gap: 5px; font-size: 13px; font-weight: 500; color: var(--muted); }
+label { display: grid; gap: 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
 label input:not([type=radio]):not([type=checkbox]), label textarea {
-  font: inherit; font-weight: 400; color: var(--ink);
+  font: inherit; font-size: 15px; font-weight: 400; color: var(--ink);
   background: var(--glass-field);
-  border: 1px solid var(--line); border-radius: 12px;
-  padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 14px;
+  padding: 12px 14px;
   outline: none;
   transition: border-color .15s, box-shadow .15s;
 }
+label input::placeholder, label textarea::placeholder { color: color-mix(in srgb, var(--muted) 75%, transparent); }
 label input:not([type=radio]):not([type=checkbox]):focus, label textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 label input:disabled { opacity: .6; cursor: not-allowed; }
 label .hint { font-weight: 400; color: var(--muted); }
@@ -578,30 +641,37 @@ label input[aria-invalid="true"]:not([type=radio]):not([type=checkbox]) { border
 .counter { justify-self: end; font-size: 12px; font-weight: 400; margin-top: -2px; }
 .help-link { justify-self: start; font-size: 12.5px; font-weight: 500; color: var(--accent); text-decoration: none; }
 .help-link:hover { text-decoration: underline; }
-textarea { resize: vertical; min-height: 70px; }
-.form + .section, .note + .form, .note + .section { margin-top: 24px; }
-.choices + .note { margin-top: -4px; }
-.form + .form { margin-top: 12px; }
+textarea { resize: vertical; min-height: 76px; }
+.choices + .form, .note + .form { margin-top: 14px; }
+.choices + .note { margin-top: 10px; }
 
-/* Вибір доставки й оплати */
-.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 8px; margin-bottom: 14px; }
+/* Вибір доставки й оплати: плитки з колом-позначкою */
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .choice { display: block; cursor: pointer; }
 .choice input { position: absolute; opacity: 0; pointer-events: none; }
 .choice span {
-  display: grid; gap: 1px; height: 100%;
-  padding: 10px 12px;
+  position: relative;
+  display: grid; gap: 2px; height: 100%;
+  padding: 11px 36px 11px 14px;
   border: 1px solid var(--line); border-radius: 14px;
   background: var(--glass-field);
   transition: border-color .15s, background .15s;
 }
-.choice b { color: var(--ink); font-size: 14px; }
+.choice span::after {
+  content: ""; position: absolute; top: 12px; right: 12px;
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--muted) 60%, transparent);
+  box-sizing: border-box;
+}
+.choice b { color: var(--ink); font-size: 14px; font-weight: 600; }
 .choice small { color: var(--muted); font-size: 12.5px; font-weight: 400; }
-.choice:hover span { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.choice:hover span { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .choice input:checked + span { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.choice input:checked + span::after { border: 5px solid var(--accent); }
 .choice input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
-.note { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--ink); font-size: 13px; }
+.note { margin: 0; padding: 11px 14px; border-radius: 14px; background: var(--accent-soft); color: var(--ink); font-size: 13.5px; }
 .note:empty { display: none; }
-.check { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 400; font-size: 14px; cursor: pointer; }
+.check { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 400; font-size: 14px; cursor: pointer; }
 .check input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
 
 /* Підказки (населений пункт, відділення) */
@@ -614,18 +684,19 @@ textarea { resize: vertical; min-height: 70px; }
   border: 1px solid var(--line); border-radius: 14px;
   box-shadow: var(--shadow-lg);
 }
-.combo-list li { padding: 8px 10px; border-radius: 9px; cursor: pointer; color: var(--ink); font-weight: 400; font-size: 14px; line-height: 1.35; }
+.combo-list li { padding: 9px 11px; border-radius: 9px; cursor: pointer; color: var(--ink); font-weight: 400; font-size: 14px; line-height: 1.35; }
 .combo-list li.active { background: var(--accent-soft); }
 .combo-list li.combo-empty { color: var(--muted); cursor: default; background: none; }
 
 .trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
-.actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-.msg { white-space: pre-line; margin-top: 12px; font-size: 14px; }
-.msg.error { color: var(--danger); }
-.done { text-align: center; padding: 20px 0 8px; }
-.done .check { width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%; background: var(--accent-soft); color: var(--ok); display: grid; place-items: center; font-size: 32px; }
+.msg { white-space: pre-line; font-size: 13.5px; }
+.msg:empty { display: none; }
+.msg.error { color: var(--danger); margin: 0 0 12px; }
+.done { text-align: center; padding: 48px 28px 36px; }
+.done .check { width: 68px; height: 68px; margin: 0 auto 18px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; }
 .done h2 { margin-bottom: 8px; }
-.done p { color: var(--muted); margin: 0 auto 22px; max-width: 380px; }
+.done p { color: var(--muted); margin: 0 auto 24px; max-width: 380px; text-wrap: pretty; }
+dialog.order:has(#orderDone:not([hidden])) { width: min(480px, calc(100% - 32px)); }
 
 /* З карткою книги весь рядок відкриває її (посилання на назві розтягнуте на рядок);
    кнопка кошика лежить зверху і лишається окремою */
@@ -636,87 +707,172 @@ a.title::after { content: ""; position: absolute; inset: 0; }
 a.title:focus-visible { outline: none; }
 .row:has(a.title:focus-visible) { outline: 2px solid var(--accent); outline-offset: -2px; }
 
-/* Картка книги: розгорнута книга — ліворуч фото, праворуч опис, між ними корінець.
-   Без фото книга «закривається» в одну сторінку */
-/* суцільний фон: смуга з ціною прилипає донизу і має ховати текст під собою */
-dialog.book { width: min(560px, calc(100% - 24px)); overflow: hidden; background: var(--menu); }
-dialog.book.has-photos { width: min(940px, calc(100% - 24px)); }
-dialog.book.has-cloth { width: min(820px, calc(100% - 24px)); }
-.spread { position: relative; display: grid; max-height: calc(100dvh - 48px); }
-.has-photos .spread { grid-template-columns: 1fr 1fr; height: min(640px, calc(100dvh - 48px)); }
-.has-cloth .spread { grid-template-columns: 1fr 1fr; height: min(540px, calc(100dvh - 48px)); }
-:is(.has-photos, .has-cloth) .spread::after {
-  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 56px;
-  transform: translateX(-50%); pointer-events: none;
-  background: linear-gradient(90deg, transparent, var(--spine) 46%, var(--spine-deep) 50%, var(--spine) 54%, transparent);
+/* ---------- Картка книги: розгорнута книга ----------
+   Ліва сторінка — сама книга (фото чи тканинна палітурка) і покупка, права — текст, що гортається.
+   Між ними корінець. Висота стала, щоб вікно не стрибало від книги до книги */
+dialog.book {
+  width: min(1040px, calc(100% - 32px));
+  height: min(740px, calc(100dvh - 48px));
+  overflow: hidden;
 }
-.leaf-photos { display: flex; flex-direction: column; min-height: 0; background: var(--stage); }
-.stage { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; padding: 36px 64px 20px; touch-action: pan-y; }
+.spread {
+  position: relative; height: 100%;
+  display: grid;
+  grid-template-columns: minmax(300px, 5fr) minmax(0, 7fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "photos text" "buy text";
+}
+/* корінець: тінь, що западає в обидва боки від згину */
+.spread::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: calc(5 / 12 * 100%); width: 60px;
+  transform: translateX(-50%); pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--spine) 44%, var(--spine-deep) 50%, var(--spine) 56%, transparent);
+}
+.leaf-photos { grid-area: photos; display: flex; flex-direction: column; min-height: 0; background: var(--stage); }
+.stage { position: relative; flex: 1; min-height: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; padding: 48px 56px 20px; touch-action: pan-y; }
 .stage img {
   display: block; max-width: 100%; max-height: 100%; object-fit: contain;
   border-radius: 3px;
-  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, .3));
+  filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .32));
 }
+.stage .cover.big { width: min(250px, 100%); }
 .stage .nav {
   position: absolute; top: 50%; transform: translateY(-50%);
-  width: 40px; height: 40px; border: 1px solid var(--glass-edge); border-radius: 50%;
+  display: grid; place-items: center;
+  width: 40px; height: 40px; padding: 0; border: 1px solid var(--glass-edge); border-radius: 50%;
   background: var(--glass-strong); color: var(--ink);
-  font-size: 24px; line-height: 1; cursor: pointer;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  cursor: pointer;
   box-shadow: var(--shadow);
 }
 .stage .prev { left: 12px; }
 .stage .next { right: 12px; }
-.thumbs { display: flex; gap: 8px; justify-content: center; padding: 0 20px 22px; overflow-x: auto; scrollbar-width: none; }
+.thumbs { display: flex; gap: 8px; justify-content: center; padding: 4px 20px 16px; overflow-x: auto; scrollbar-width: none; }
 .thumbs button {
-  flex: none; width: 44px; height: 60px; padding: 0;
+  flex: none; width: 42px; height: 58px; padding: 0;
   border: 0; border-radius: 4px; overflow: hidden; cursor: pointer;
-  background: var(--line); opacity: .55;
+  background: var(--line); opacity: .5;
   transition: opacity .15s;
 }
 .thumbs button:hover, .thumbs button[aria-current="true"] { opacity: 1; }
 .thumbs button[aria-current="true"] { box-shadow: 0 0 0 2px var(--accent); }
 .thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-.leaf-text { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
-.leaf-head { padding: 34px 36px 0; }
-.book h2 { font: 600 clamp(22px, 2.6vw, 28px)/1.2 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0 40px 10px 0; text-wrap: balance; }
-.book-by { margin: 0; color: var(--muted); font-size: 14px; }
-.book-by .author { color: var(--accent); font-weight: 500; }
-.facts {
-  display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px;
-  margin: 18px 36px 0; font-size: 14px;
-}
-.facts dt { color: var(--muted); }
-.facts dd { margin: 0; }
-.facts:empty { display: none; }
-.desc { padding: 22px 36px 8px; font: 400 16px/1.7 Literata, Georgia, serif; max-width: 62ch; hyphens: auto; }
-.desc p { margin: 0 0 .9em; text-wrap: pretty; }
+/* Покупка під книгою: ціна ліворуч, кнопка праворуч, на скляній смузі */
 .buy {
-  position: sticky; bottom: 0; margin-top: auto;
-  display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 16px 36px 20px;
-  background: var(--menu);
+  grid-area: buy;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  margin: 0 22px 22px 18px; padding: 14px 14px 14px 20px;
+  border: 1px solid var(--glass-edge); border-radius: 20px;
+  background: var(--glass-strong);
+  box-shadow: 0 1px 0 var(--glass-edge) inset, 0 8px 24px rgba(0, 0, 0, .12);
+}
+.buy .price { font-size: 26px; }
+.buy .was { justify-content: flex-start; font-size: 13.5px; }
+.buy .stock { margin-top: 6px; }
+.ctrl.wide { display: flex; align-items: center; gap: 10px; }
+.ctrl.wide .add.btn { width: auto; height: auto; border: 0; border-radius: 999px; padding: 13px 22px; font-size: 15px; font-weight: 600; background: var(--accent); color: var(--accent-ink); }
+.ctrl.wide .add.btn:hover { background: var(--accent-hover); }
+.ctrl.wide .in { color: var(--muted); font-size: 13px; font-weight: 500; }
+.ctrl.wide .qty button { width: 40px; height: 46px; }
+
+.leaf-text { grid-area: text; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.leaf-head { padding: 40px 84px 0 48px; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.crumbs a { color: inherit; text-decoration: none; font-weight: 500; }
+.crumbs a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.crumbs .sep { opacity: .6; }
+.crumbs[hidden] + h2 { margin-top: 4px; }
+.book h2, .page-text h1 {
+  font: 600 clamp(25px, 2.7vw, 34px)/1.16 Literata, Georgia, serif; letter-spacing: -.012em;
+  margin: 0 0 10px; text-wrap: balance;
+}
+.book-by { margin: 0; color: var(--ink); font-size: 16px; font-weight: 500; }
+/* характеристики: сітка «назва над значенням», розділена тонкими лініями, як вихідні дані книги */
+.facts {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); column-gap: 24px;
+  margin: 26px 48px 0; font-size: 14.5px;
   border-top: 1px solid var(--line);
 }
+.facts > div { padding: 11px 0 12px; border-bottom: 1px solid var(--line); min-width: 0; }
+.facts dt { color: var(--muted); font-size: 12.5px; margin-bottom: 2px; }
+.facts dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; font-variant-numeric: lining-nums; }
+.facts:empty { display: none; }
+.desc { padding: 26px 48px 40px; font: 400 16.5px/1.72 Literata, Georgia, serif; max-width: 68ch; hyphens: auto; }
+.desc p { margin: 0 0 .9em; text-wrap: pretty; }
+.desc p:last-child { margin-bottom: 0; }
 .desc:empty { display: none; }
-.desc:empty + .buy { padding-top: 24px; border-top: 0; }
-.buy .price { font-size: 22px; }
-dialog.book > .x { position: absolute; top: 14px; right: 14px; z-index: 2; }
+dialog.book > .x { position: absolute; top: 18px; right: 18px; z-index: 3; background: var(--glass-strong); }
 
+@media (max-width: 860px) {
+  .spread { grid-template-columns: minmax(260px, 5fr) minmax(0, 7fr); }
+  .leaf-head { padding: 34px 72px 0 32px; }
+  .facts { margin: 22px 32px 0; }
+  .desc { padding: 22px 32px 32px; }
+  .stage { padding: 44px 40px 16px; }
+  .buy { margin: 0 16px 16px 12px; }
+}
+
+/* ---------- Телефон: обидва вікна — аркуші знизу ---------- */
 @media (max-width: 720px) {
-  dialog.book, dialog.book.has-photos, dialog.book.has-cloth { width: calc(100% - 16px); max-height: calc(100dvh - 16px); }
-  .spread, .has-photos .spread, .has-cloth .spread { display: block; height: auto; max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
-  :is(.has-photos, .has-cloth) .spread::after { display: none; }
-  .stage { height: min(54dvh, 440px); padding: 28px 52px 14px; }
-  /* палітурка на телефоні невелика: головне — назва й ціна, а не тканина */
-  .has-cloth .stage { height: auto; padding: 30px 20px 6px; }
-  .cover.big { width: 150px; }
+  dialog, dialog.order, dialog.book {
+    width: 100%; max-width: 100%;
+    margin: auto 0 0;
+    max-height: calc(100dvh - 10px);
+    border-radius: 24px 24px 0 0; border-bottom: 0;
+  }
+  dialog[open] { animation: sheet .28s cubic-bezier(.2, .8, .2, 1); }
+  dialog.order:has(#orderDone:not([hidden])) { width: 100%; }
+
+  /* замовлення: книги згори, далі кроки, сума з кнопкою прилипає до низу */
+  #orderBody:not([hidden]) { display: flex; flex-direction: column; }
+  .order .dlg-head { order: 0; padding: 18px 14px 8px 20px; }
+  .dlg h2 { font-size: 22px; }
+  .order-sum { display: contents; }
+  .order-lines { order: 1; margin: 4px 16px 0; padding: 12px 14px 4px; border: 1px solid var(--line); border-radius: 18px; background: var(--stage); }
+  .lines { max-height: none; }
+  .order-form { order: 2; padding: 22px 20px 24px; }
+  .order-pay {
+    order: 3; position: sticky; bottom: 0; z-index: 4;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+  }
+  .order-pay .total { flex-direction: column; align-items: flex-start; gap: 3px; margin: 0; }
+  .order-pay .total span { font-size: 12px; }
+  .order-pay .total b { font-size: 22px; }
+  .order-pay .msg.error { order: -1; flex-basis: 100%; margin: 0 0 10px; }
+  .order-pay .btn { flex: 1; width: auto; }
+  .form { grid-template-columns: 1fr; }
+  .choices { grid-template-columns: 1fr 1fr; }
+  .step + .step { margin-top: 24px; padding-top: 22px; }
+  .done { padding: 40px 20px calc(28px + env(safe-area-inset-bottom)); }
+
+  /* картка книги: одна колонка, що гортається; ціна з кнопкою — смугою знизу */
+  dialog.book { height: auto; }
+  .spread { display: block; height: auto; max-height: calc(100dvh - 10px); overflow-y: auto; overscroll-behavior: contain; }
+  .spread::after { display: none; }
+  .stage { height: min(50dvh, 420px); padding: 40px 52px 12px; }
+  .has-cloth .stage { height: auto; padding: 36px 20px 8px; }
+  .stage .cover.big { width: 150px; }
   .leaf-text { overflow: visible; }
-  .leaf-head { padding: 24px 20px 0; }
-  .desc { padding: 18px 20px 4px; font-size: 15.5px; }
-  .facts { margin: 16px 20px 0; }
-  .buy { padding: 14px 20px 16px; }
-  dialog.book > .x { background: var(--glass-strong); }
+  .leaf-head { padding: 22px 20px 0; }
+  .book h2 { font-size: 25px; }
+  .facts { margin: 20px 20px 0; grid-template-columns: 1fr 1fr; column-gap: 16px; }
+  .desc { padding: 20px 20px 28px; font-size: 16px; }
+  .buy {
+    position: sticky; bottom: 0; z-index: 2;
+    margin: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    border: 0; border-top: 1px solid var(--line); border-radius: 0;
+    -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: none;
+    flex-wrap: nowrap;
+  }
+  .buy .price { font-size: 22px; }
+  .buy .stock { margin-top: 3px; }
+  dialog.book > .x { top: 12px; right: 12px; }
 }
 
 /* Окремі сторінки (книга /book/15/, «Доставка й оплата», «Контакти»…): лише свій вміст —
@@ -766,40 +922,56 @@ body[data-page]:not([data-book]) main { max-width: 752px; }
 }
 .back:hover { background: var(--glass-strong); }
 .back svg { color: var(--muted); }
+/* Сторінка книги (/book/15/): та сама розгорнута книга, що й у картці, але на всю висоту тексту */
 .book-page {
   position: relative;
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  display: grid; grid-template-columns: minmax(280px, 5fr) minmax(0, 7fr);
   margin-top: 14px;
-  border-radius: var(--radius);
+  border-radius: 26px;
   box-shadow: var(--shadow);
-  overflow: hidden;
+  /* clip, а не hidden: інакше ліва сторінка не прилипне */
+  overflow: clip;
 }
 .book-page::after {
-  content: ""; position: absolute; top: 0; bottom: 0; left: 46.5%; width: 56px;
+  content: ""; position: absolute; top: 0; bottom: 0; left: calc(5 / 12 * 100%); width: 60px;
   transform: translateX(-50%); pointer-events: none;
-  background: linear-gradient(90deg, transparent, var(--spine) 46%, var(--spine-deep) 50%, var(--spine) 54%, transparent);
+  background: linear-gradient(90deg, transparent, var(--spine) 44%, var(--spine-deep) 50%, var(--spine) 56%, transparent);
 }
-.page-photo { display: grid; place-items: center; padding: 40px 48px; background: var(--stage); }
+.page-side { background: var(--stage); }
+/* книга з ціною тримається на виду, поки читаєте довгий опис */
+.page-hold { position: sticky; top: 0; }
+.page-photo { display: grid; place-items: center; padding: 48px 48px 24px; }
 .page-photo img {
   display: block; max-width: 100%; max-height: 520px; object-fit: contain;
   border-radius: 3px;
-  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, .3));
+  filter: drop-shadow(0 18px 30px rgba(0, 0, 0, .32));
 }
-.page-text { display: flex; flex-direction: column; padding: 38px 44px 30px; }
-.page-text h1 { font: 600 clamp(24px, 3vw, 34px)/1.18 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0 0 10px; text-wrap: balance; }
-.book-page .facts { margin: 20px 0 0; }
-.book-page .desc { padding: 20px 0 0; }
-.page-buy { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: auto; padding-top: 24px; }
-.page-buy .price { font-size: 24px; }
+.page-photo .cover.big { width: min(250px, 100%); }
+.page-buy {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  margin: 0 22px 22px 18px; padding: 14px 14px 14px 20px;
+  border: 1px solid var(--glass-edge); border-radius: 20px;
+  background: var(--glass-strong);
+  box-shadow: 0 1px 0 var(--glass-edge) inset, 0 8px 24px rgba(0, 0, 0, .12);
+}
+.page-buy .price { font-size: 26px; }
 .page-buy .was { justify-content: flex-start; font-size: 13.5px; }
+.page-buy .stock { margin-top: 6px; }
+.page-text { padding: 40px 48px 44px; min-width: 0; }
+.page-text .facts { margin: 26px 0 0; }
+.page-text .desc { padding: 26px 0 0; }
 .sold { color: var(--muted); font-weight: 500; }
 @media (max-width: 720px) {
   .book-page { grid-template-columns: minmax(0, 1fr); }
   .book-page::after { display: none; }
-  .page-photo { padding: 28px 40px; }
+  .page-hold { position: static; }
+  .page-photo { padding: 32px 40px 18px; }
   .page-photo img { max-height: 54dvh; }
-  .page-photo:has(.big) { padding: 30px 20px 4px; }
-  .page-text { padding: 24px 20px 22px; }
+  .page-photo:has(.big) { padding: 32px 20px 16px; }
+  .page-photo .cover.big { width: 150px; }
+  .page-buy { margin: 0 12px 12px; }
+  .page-text { padding: 24px 20px 26px; }
+  .page-text .facts { grid-template-columns: 1fr 1fr; column-gap: 16px; }
 }
 
 /* Підвал прямо на фото; тінь тримає текст читабельним на білих сторінках.

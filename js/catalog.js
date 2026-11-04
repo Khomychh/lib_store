@@ -339,12 +339,13 @@ function paintCloth(box, b) {
 const COVER_RATIO = 5 / 7;
 const FILL_TOLERANCE = 0.12;
 
-// Перше фото книги як обкладинка; немає фото або воно не відкрилося — тканинна палітурка
-function bookCover(b) {
+// Перше фото книги як обкладинка; немає фото або воно не відкрилося — тканинна палітурка.
+// plain — без позначок стану й знижки (мініатюра в замовленні)
+function bookCover(b, plain) {
   const box = el('div', 'cover');
   box.setAttribute('aria-hidden', 'true');
   const badge = () => {
-    if (view !== 'grid') return;
+    if (view !== 'grid' || plain) return;
     if (isUsed(b)) box.append(el('span', 'cond', b.condition));
     if (discount(b)) box.append(el('span', 'ribbon', `−${discount(b)}%`));
   };
