@@ -87,7 +87,7 @@ button { font: inherit; }
 }
 
 /* Скло */
-.glass, .list, .toolbar, .count, .state {
+.glass, .list:not(.grid), .toolbar, .count, .state {
   background: var(--glass);
   -webkit-backdrop-filter: var(--glass-blur);
   backdrop-filter: var(--glass-blur);
@@ -194,7 +194,7 @@ header { padding: 56px 16px 32px; }
 .filter-menu .check.empty { opacity: .45; }
 
 /* під пошуком: скільки книг знайдено і які фільтри ввімкнені — кожен знімається кліком */
-.summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 16px 0 12px; }
+.summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 22px 0 24px; }
 .picked {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 8px 4px 12px;
@@ -217,16 +217,20 @@ header { padding: 56px 16px 32px; }
 .sort-menu .tick { width: 16px; flex: none; visibility: hidden; }
 .sort-menu li[aria-selected="true"] .tick { visibility: visible; }
 
+/* скільки книг — скляна табличка над каталогом; під полицями добірок вона ж — заголовок усього каталогу */
 .count {
   display: inline-block;
-  padding: 4px 12px;
-  border-radius: 999px;
-  color: var(--muted); font-size: 13px; font-weight: 500;
+  padding: 7px 16px 8px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font: 600 16px/1.3 Literata, Georgia, serif;
+  font-variant-numeric: lining-nums;
 }
+.shelves:not([hidden]) ~ .summary { margin-top: 40px; }
 
-/* Список книг: одна скляна полиця */
-.list {
-  list-style: none; margin: 0; padding: 0;
+/* Список книг: одна скляна смуга (вітрина — нижче, без суцільного скла) */
+.list { list-style: none; margin: 0; padding: 0; }
+.list:not(.grid) {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
@@ -364,29 +368,81 @@ header { padding: 56px 16px 32px; }
 .skeleton .cover { box-shadow: none; background: var(--line); }
 .skeleton .cover::after { display: none; }
 
-/* Вітрина: книги стоять обкладинкою до покупця на тій самій скляній полиці */
+/* Вітрина: книги стоять просто на фото, на скляній полиці.
+   Обкладинка — над полицею; під нею скляна планка з назвою й ціною. Планки сусідніх книг сходяться в одну полицю
+   на весь ряд, тому колонок рівно --cols (а не auto-fill): так видно, де ряд починається й закінчується.
+   Те саме число колонок і в полицях добірок — книги на головній стоять в одній сітці */
+:root { --cols: 5; } /* не більше п'яти: інакше обкладинки дрібні, а назви обрізаються */
+@media (max-width: 939px) { :root { --cols: 4; } }
+@media (max-width: 759px) { :root { --cols: 3; } }
+@media (max-width: 600px) { :root { --cols: 2; } }
 .list.grid {
+  --pad: 16px; /* відступ обкладинки від країв своєї ділянки полиці */
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
-  gap: 8px;
-  padding: 14px;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 36px 0;
+  padding: 0;
 }
 .grid .row {
+  position: relative; z-index: 0;
+  container-type: inline-size; /* 100cqw — ширина обкладинки: з неї рахується, де починається полиця */
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-rows: auto 1fr auto;
   align-items: start;
   gap: 0 8px;
-  padding: 10px 10px 12px;
+  padding: 0 var(--pad) 14px;
   border-bottom: 0;
-  border-radius: 14px;
 }
-.grid .row.in-cart { box-shadow: inset 0 0 0 1.5px var(--accent); }
+.grid .row, .grid .row:hover, .grid .row.in-cart { background: none; }
+/* полиця: скло від низу обкладинки до низу картки; зверху на неї падає тінь від книги, знизу — товщина скла */
+.grid .row::before, .shelf-more::before {
+  content: ""; position: absolute; z-index: -1;
+  left: 0; right: 0; bottom: 0; top: calc(100cqw * 1.4 - 1px);
+  background: linear-gradient(rgba(0, 0, 0, .1), transparent 12px), var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: inset 0 1px 0 var(--glass-edge), inset 1px 0 0 var(--line), 0 16px 26px -14px rgba(0, 0, 0, .6);
+  transition: background-color .15s;
+}
+/* краї полиці заокруглені: перша й остання книга ряду (номери — за --cols); перша без роздільника ліворуч */
+.list.grid > :last-child::before, .shelf-row > :last-child::before { border-radius: 0 14px 14px 0; }
+.shelf-row > :first-child::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
+:root { --shelf-start: inset 0 1px 0 var(--glass-edge), 0 16px 26px -14px rgba(0, 0, 0, .6); }
+@media (min-width: 940px) {
+  .list.grid > :nth-child(5n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
+  .list.grid > :nth-child(5n)::before { border-radius: 0 14px 14px 0; }
+  .list.grid > :nth-child(5n + 1):last-child::before { border-radius: 14px; }
+}
+@media (min-width: 760px) and (max-width: 939px) {
+  .list.grid > :nth-child(4n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
+  .list.grid > :nth-child(4n)::before { border-radius: 0 14px 14px 0; }
+  .list.grid > :nth-child(4n + 1):last-child::before { border-radius: 14px; }
+}
+@media (min-width: 601px) and (max-width: 759px) {
+  .list.grid > :nth-child(3n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
+  .list.grid > :nth-child(3n)::before { border-radius: 0 14px 14px 0; }
+  .list.grid > :nth-child(3n + 1):last-child::before { border-radius: 14px; }
+}
+@media (max-width: 600px) {
+  .list.grid > :nth-child(2n + 1)::before { border-radius: 14px 0 0 14px; box-shadow: var(--shelf-start); }
+  .list.grid > :nth-child(2n)::before { border-radius: 0 14px 14px 0; }
+  .list.grid > :nth-child(2n + 1):last-child::before { border-radius: 14px; }
+}
+@media (hover: hover) {
+  .grid .row:hover::before { background-color: var(--glass-strong); }
+}
+/* у кошику — темна смужка по краю полиці під книгою */
+.grid .row.in-cart { box-shadow: none; }
+.grid .row.in-cart::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+  background: var(--accent);
+}
 .grid .row .cover {
   grid-column: 1 / -1; grid-row: auto; align-self: auto;
   width: 100%; height: auto; aspect-ratio: 5 / 7;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   border-radius: 3px 6px 6px 3px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 14px 26px -10px rgba(0, 0, 0, .45);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, .3), 0 18px 30px -12px rgba(0, 0, 0, .7);
 }
 .grid .row .info { grid-column: 1 / -1; margin-bottom: 10px; }
 .grid .row .title { font-size: 15px; }
@@ -473,7 +529,7 @@ header { padding: 56px 16px 32px; }
   /* меню відкриваються на всю ширину панелі, а не від своєї кнопки — інакше вилазять за край екрана */
   .sort, .filter { position: static; }
   .sort-menu, .filter-menu { left: 0; right: 0; min-width: 0; max-width: none; }
-  .list.grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 8px; }
+  .list.grid { --pad: 10px; row-gap: 28px; }
 }
 /* кругла, на всю висоту панелі, як сусідні кнопки (ті розтягуються своїми обгортками) */
 .view-btn { flex: none; width: 46px; height: auto; align-self: stretch; justify-content: center; padding: 0; }
@@ -541,17 +597,28 @@ header { padding: 56px 16px 32px; }
 }
 
 /* ---------- Добірки ----------
-   На головній — полиці: скляна смуга з назвою й рядом обкладинок, що гортається вбік.
+   На головній — полиці: скляна табличка з назвою й описом, під нею ряд книг на скляній полиці,
+   як у каталозі (той самий вигляд і ті самі колонки), лише ряд гортається вбік.
    Вибрана добірка — заголовок з описом над її книгами */
-.shelves { display: grid; gap: 14px; margin-top: 18px; }
-.shelf {
-  padding: 18px 0 8px;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  min-width: 0;
+.shelves { display: grid; gap: 40px; margin-top: 22px; }
+/* табличка: назва з кнопками, під нею опис — одне скло на обидва (окреме скло дало б шов між ними) */
+.shelf.glass {
+  display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0;
+  background: none; -webkit-backdrop-filter: none; backdrop-filter: none;
 }
-.shelf-head { display: flex; align-items: center; gap: 10px; padding: 0 16px 0 22px; }
-.shelf-title { flex: 1; min-width: 0; margin: 0; font: 600 21px/1.25 Literata, Georgia, serif; letter-spacing: -.01em; text-wrap: balance; }
+.shelf::before {
+  content: ""; grid-area: 1 / 1 / 2 / 2;
+  border-radius: 16px;
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow);
+}
+.shelf:has(> .shelf-desc)::before { grid-row-end: 3; }
+.shelf-head, .shelf-desc { grid-column: 1; position: relative; }
+.shelf-head { grid-row: 1; display: flex; align-items: center; gap: 10px; padding: 12px 12px 12px 22px; }
+.shelf-head:has(+ .shelf-desc) { padding-bottom: 2px; }
+.shelf-title { flex: 1; min-width: 0; margin: 0; font: 600 22px/1.25 Literata, Georgia, serif; letter-spacing: -.01em; text-wrap: balance; }
 .shelf-title a { color: inherit; text-decoration: none; }
 .shelf-title a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
 .shelf-all, .shelf-nav button {
@@ -570,26 +637,36 @@ header { padding: 56px 16px 32px; }
 /* на телефоні полицю гортають пальцем */
 @media (hover: none) { .shelf-nav { display: none; } }
 .shelf-desc {
-  margin: 6px 22px 0; max-width: 72ch;
+  grid-row: 2;
+  margin: 0; padding: 0 22px 14px;
   color: var(--muted); font-size: 14px; line-height: 1.5;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  text-wrap: pretty;
 }
+/* книга на полиці добірки завширшки з колонку каталогу */
 .shelf-row {
-  display: flex; gap: 8px;
-  list-style: none; margin: 0; padding: 10px 12px 10px;
+  --pad: 16px;
+  display: flex; gap: 0;
+  list-style: none; margin: 0; padding: 24px 0 26px;
   overflow-x: auto; overscroll-behavior-x: contain;
-  scroll-snap-type: x mandatory; scroll-padding: 0 12px;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--muted) 40%, transparent) transparent;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
 }
-.shelf-row > li { flex: 0 0 172px; scroll-snap-align: start; }
+.shelf-row::-webkit-scrollbar { display: none; }
+.shelf-row > li { flex: 0 0 calc(100% / var(--cols)); scroll-snap-align: start; }
+/* полиця коротша за добірку — у кінці порожнє місце на полиці з посиланням на всю добірку */
+.shelf-more { position: relative; z-index: 0; container-type: inline-size; padding: 0 var(--pad); }
 .shelf-more a {
   display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
-  height: 100%; min-height: 200px; margin: 0 4px;
-  border: 1px dashed color-mix(in srgb, var(--muted) 50%, transparent); border-radius: 14px;
+  aspect-ratio: 5 / 7;
+  border: 1.5px dashed color-mix(in srgb, var(--glass-edge) 85%, transparent);
+  border-radius: 3px 6px 6px 3px;
+  background: var(--glass);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
   color: var(--ink); text-decoration: none; text-align: center;
+  transition: background-color .15s;
 }
-.shelf-more a:hover { background: var(--row-hover); }
+.shelf-more a:hover { background-color: var(--glass-strong); }
 .shelf-more b { font: 600 22px/1.2 Literata, Georgia, serif; }
 .shelf-more span { color: var(--muted); font-size: 13.5px; }
 .shelf-more svg { margin-top: 6px; color: var(--muted); }
@@ -605,12 +682,15 @@ header { padding: 56px 16px 32px; }
 .coll-desc { margin: 12px 0 0; max-width: 68ch; font: 400 16px/1.65 Literata, Georgia, serif; text-wrap: pretty; }
 .coll-desc + .coll-desc { margin-top: .6em; }
 @media (max-width: 600px) {
-  .shelf { padding-top: 16px; }
-  .shelf-head { padding: 0 12px 0 16px; }
+  .shelves { gap: 30px; }
+  .shelf-head { padding: 10px 10px 10px 16px; }
+  .shelf-head:has(+ .shelf-desc) { padding-bottom: 2px; }
   .shelf-title { font-size: 19px; }
-  .shelf-desc { margin: 6px 16px 0; font-size: 13.5px; }
-  .shelf-row { padding: 8px 8px 8px; scroll-padding: 0 8px; gap: 4px; }
-  .shelf-row > li { flex-basis: 44vw; }
+  .shelf-desc { padding: 0 16px 12px; font-size: 13.5px; }
+  /* дві книги й край третьої — видно, що полицю можна гортати */
+  /* полиця гортається до самого краю екрана, а не обрізається на відступі сторінки */
+  .shelf-row { --pad: 10px; margin: 0 -16px; padding: 18px 16px 20px; scroll-padding: 0 16px; }
+  .shelf-row > li { flex-basis: 42%; }
   .coll-head { padding: 22px 20px 20px; }
 }
 

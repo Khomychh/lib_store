@@ -338,10 +338,10 @@ function staticRow(b) {
     `<div class="info"><a class="title" href="/book/${encodeURIComponent(b.id)}/">${esc(b.title)}</a><div class="byline">${by}</div></div>` +
     `<div class="pricebox">${priceLines(b)}</div><div class="ctrl"></div></li>`;
 }
-// Сторінки каталогу: головна — перша, далі /storinka/2/, /storinka/3/… по 48 книг, з перемикачем під ними.
+// Сторінки каталогу: головна — перша, далі /storinka/2/, /storinka/3/… по 50 книг, з перемикачем під ними.
 // Порядок «Нові надходження», як у скрипта: більший № — новіша книга. Беремо весь каталог, а не лише книги зі сторінками.
 // Номери в перемикачі й розмітка — як у pagerItems/renderPager (js/catalog.js)
-const PAGE = 48;
+const PAGE = 50;
 const sorted = [...catalog.books].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
 const total = sorted.length;
 const pageCount = Math.max(1, Math.ceil(total / PAGE));

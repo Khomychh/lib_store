@@ -4,7 +4,7 @@
 // URL веб-застосунку Google Apps Script (див. docs/setup.md, крок 3)
 const API_URL = 'https://script.google.com/macros/s/AKfycby2gayZYooqZHYsOsrKM7wTZVsP68SlDtbBXQKCvr8XmuiLiYXL5qBouuTsO5U3UHkc/exec';
 
-const PAGE = 48; // книг на сторінці каталогу; те саме число — PAGE у scripts/build.mjs
+const PAGE = 50; // книг на сторінці каталогу (10 повних рядів по 5 на ПК); те саме число — PAGE у scripts/build.mjs
 const CART_KEY = 'lib_store_cart';
 const BOOKS_KEY = 'lib_store_books';
 
