@@ -110,22 +110,62 @@ function renderLines() {
     // що піде передзамовленням: уся книга або лише примірники понад наявність
     const pre = preorderPart(book, qty);
     if (pre) name.append(el('div', 'pre', pre === qty ? 'Передзамовлення' : `Передзамовлення: ${pre} шт.`));
+    name.append(lineQty(book, qty));
     const rm = el('button', 'remove');
     rm.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
     rm.type = 'button'; rm.title = 'Прибрати';
     rm.setAttribute('aria-label', `Прибрати «${book.title}»`);
-    rm.onclick = () => {
-      setQty(book.id, 0);
-      refreshRow(book.id);
-      if (!cartLines().length) $('dialog').close();
-      else renderLines();
-    };
+    rm.onclick = () => changeLine(book.id, 0);
     const end = el('div', 'line-end');
     end.append(el('b', 'sum', money(book.price * qty)), rm);
     li.append(bookCover(book, true), name, end);
     ul.append(li);
   }
   $('dlgTotal').textContent = money(cartTotal());
+}
+
+// Кількість у списку замовлення: «−» до 1 (прибрати — хрестиком), «+» до наявності (під передзамовлення — без межі).
+// Вписати 0 — те саме, що прибрати
+function lineQty(book, qty) {
+  const box = el('div', 'qty');
+  const btn = (text, label, role, q) => {
+    const b = el('button', null, text);
+    b.type = 'button';
+    b.dataset.role = role;
+    b.setAttribute('aria-label', `${label}: «${book.title}»`);
+    b.onclick = () => changeLine(book.id, q, role);
+    return b;
+  };
+  const minus = btn('−', 'Менше', 'minus', qty - 1);
+  minus.disabled = qty <= 1;
+  const plus = btn('+', 'Більше', 'plus', qty + 1);
+  plus.disabled = qty >= maxQty(book);
+  if (plus.disabled) plus.title = 'Більше немає в наявності';
+  const input = el('input');
+  input.type = 'number'; input.min = 0; input.inputMode = 'numeric';
+  if (!book.preorder) input.max = book.stock;
+  input.value = qty;
+  input.dataset.role = 'input';
+  input.setAttribute('aria-label', `Кількість: «${book.title}»`);
+  input.onfocus = () => input.select();
+  input.onchange = () => changeLine(book.id, parseInt(input.value, 10) || 0, 'input');
+  input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } };
+  box.dataset.id = book.id;
+  box.append(minus, input, plus);
+  return box;
+}
+
+// Змінює кількість зі списку замовлення й перемальовує список; фокус лишається на тій самій кнопці
+function changeLine(id, q, role) {
+  setQty(id, q);
+  refreshRow(id);
+  if (!cartLines().length) { $('dialog').close(); return; }
+  renderLines();
+  if (!role || !cart[id]) return;
+  const box = [...$('lines').querySelectorAll('.qty')].find(b => b.dataset.id === id);
+  const target = box?.querySelector(`[data-role="${role}"]`);
+  // «−» на одиниці вимикається — тоді фокус на поле
+  (target && !target.disabled ? target : box?.querySelector('input'))?.focus({ preventScroll: true });
 }
 
 function refreshRow(id) {
