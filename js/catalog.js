@@ -2,7 +2,7 @@
 // Скрипти підключаються в index.html по черзі й мають спільні змінні: catalog → filters → cart → book → order → app.
 
 // URL веб-застосунку Google Apps Script (див. docs/setup.md, крок 3)
-const API_URL = 'https://script.google.com/macros/s/AKfycbzECOv83-3zeRQTkKGr7dDt73XYR64jI6Qv5gPQTOQrSvt9n8VFlsrIMkWJWAIaV6jO/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycby2gayZYooqZHYsOsrKM7wTZVsP68SlDtbBXQKCvr8XmuiLiYXL5qBouuTsO5U3UHkc/exec';
 
 const PAGE = 48; // книг на сторінці каталогу; те саме число — PAGE у scripts/build.mjs
 const CART_KEY = 'lib_store_cart';

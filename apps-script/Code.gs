@@ -106,11 +106,13 @@ function readCategories_() {
     .filter(c => c.name && !seen[c.name] && (seen[c.name] = true));
 }
 
-// Підказки у випадних списках каталогу. Інше значення теж можна вписати (таблиця лише попередить),
-// і воно з'явиться у фільтрі на сайті, тож пишіть однаково: «Добрий», а не «добрий» чи «Добрий стан»
+// Підказки у випадних списках каталогу. «Стан» — лише з цього списку; в інші колонки можна вписати
+// й інше значення (таблиця лише попередить), і воно з'явиться у фільтрі на сайті, тож пишіть однаково:
+// «Тверда», а не «тверда» чи «Тверда обкладинка»
+const STRICT_FIELDS = ['Стан'];
 const FIELD_OPTIONS = {
-  'Стан': ['Нова', 'Як нова', 'Добрий', 'Задовільний'],
-  'Обкладинка': ['Тверда', 'М’яка'],
+  'Стан': ['Нова', 'Вживана'],
+  'Обкладинка': ['Тверда', 'М’яка', 'Інтегральна'],
   'Мова': ['Українська', 'Англійська', 'Російська'],
 };
 
@@ -145,6 +147,9 @@ function setupCatalog() {
     if (!col) {
       head.push(name);
       col = head.length;
+      // аркуш, збережений з xlsx, має рівно стільки колонок, скільки було даних: за його межами
+      // getRange падає з помилкою, і решта колонок не додається — тож спершу розширюємо аркуш
+      if (col > books.getMaxColumns()) books.insertColumnsAfter(books.getMaxColumns(), col - books.getMaxColumns());
       books.getRange(1, col).setValue(name).setFontWeight('bold');
     }
     return col;
@@ -154,7 +159,7 @@ function setupCatalog() {
   Object.keys(FIELD_OPTIONS).forEach(name => {
     books.getRange(2, column(name), rows, 1).setDataValidation(SpreadsheetApp.newDataValidation()
       .requireValueInList(FIELD_OPTIONS[name], true)
-      .setAllowInvalid(true)
+      .setAllowInvalid(STRICT_FIELDS.indexOf(name) < 0)
       .build());
   });
   column('Видавництво');
