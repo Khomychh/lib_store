@@ -23,6 +23,9 @@
   input:focus, select:focus, textarea:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
   input[readonly] { background: #f1f3f4; color: #5f6368; }
   textarea { min-height: 70px; resize: vertical; }
+  label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #202124; margin: 0; cursor: pointer; }
+  label.check input { width: auto; margin: 0; }
+  label.check small { color: #5f6368; font-size: 11px; }
   .bad { border-color: #d93025 !important; }
   .hint { font-size: 11px; color: #5f6368; min-height: 14px; margin-top: 2px; }
   .hint.err { color: #d93025; }
@@ -87,6 +90,8 @@
 
       <div class="w2"><label>ISBN</label><input name="isbn"><div class="hint" data-for="isbn"></div></div>
       <div class="w2"><label>Передзамовлення <small>(можна замовити більше, ніж є)</small></label><select name="preorder"><option value="">— (недоступне) —</option><option>Доступне</option><option>Недоступне</option></select></div>
+
+      <div class="w4"><label class="check"><input type="checkbox" name="publish" checked> Публікація <small>(дозволено показувати на сайті; інші умови — ціна, наявність чи передзамовлення — теж потрібні)</small></label><div class="hint" data-for="publish"></div></div>
 
       <div class="w4"><label>Опис <small>(новий рядок — новий абзац)</small></label><textarea name="description"></textarea></div>
     </div>
@@ -326,6 +331,7 @@ function values() {
   FIELDS.forEach(k => { v[k] = field(k).value.trim(); });
   // кома в цінах — звична річ, таблиці потрібна крапка
   ['price', 'salePrice'].forEach(k => { v[k] = v[k].replace(',', '.').replace(/\s/g, ''); });
+  v.publish = field('publish').checked ? 'true' : 'false';
   return v;
 }
 
@@ -382,6 +388,9 @@ function showCheck() {
       hint.className = 'hint' + (warnings[k].startsWith('✓') ? ' ok' : k === 'isbn' ? ' err' : '');
     } else if (!(k === 'id' && !editing)) { hint.textContent = ''; hint.className = 'hint'; }
   });
+  const pubHint = form.querySelector('.hint[data-for="publish"]');
+  pubHint.textContent = field('publish').checked ? '' : 'Без галочки книги не буде на сайті, і замовити її не вийде';
+  pubHint.className = 'hint err';
   showDupes();
   return errors;
 }
@@ -472,6 +481,7 @@ async function openBook(id) {
     fillConditions(book.condition);
     keepOption(field('preorder'), book.preorder);
     FIELDS.forEach(k => { field(k).value = book[k]; });
+    field('publish').checked = book.publish === 'true';
     $('#photoInfo').textContent = data.photos ? `(уже є: ${book.photoCount}; нові додадуться після них)` : '';
     clearPhotos();
     setMode();

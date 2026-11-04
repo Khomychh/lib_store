@@ -120,10 +120,9 @@ header { padding: 56px 16px 32px; }
   font: 600 clamp(30px, 5vw, 46px)/1.08 Literata, Georgia, serif;
   font-optical-sizing: auto;
   letter-spacing: -.015em;
-  margin: 0 0 12px;
+  margin: 0;
   text-wrap: balance;
 }
-.sub { color: var(--muted); margin: 0 auto; max-width: 480px; text-wrap: balance; }
 @media (max-width: 600px) {
   header { padding: 28px 12px 20px; }
   .plaque { padding: 22px 20px; border-radius: 20px; }

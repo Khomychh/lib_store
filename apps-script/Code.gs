@@ -2,7 +2,8 @@
  * Бекенд книжкового магазину (Google Apps Script).
  *
  * Скрипт прив'язаний до таблиці ЗАМОВЛЕНЬ (Розширення → Apps Script).
- *   GET  → повертає JSON зі списком книг у наявності (і тих, що можна передзамовити) з таблиці-каталогу
+ *   GET  → повертає JSON зі списком книг у наявності (і тих, що можна передзамовити) з таблиці-каталогу;
+ *          лише з галочкою «Публікація», якщо така колонка є
  *   POST → записує замовлення в два аркуші:
  *          «Замовлення» — один рядок на замовлення, з колонкою «Статус»
  *          «Позиції»    — один рядок на кожну книгу, пов'язаний номером замовлення
@@ -206,13 +207,28 @@ const FIELD_OPTIONS = {
 // «Доступне», «доступне» — так; «Недоступне», «Не доступне», порожньо — ні
 const preorderOn_ = v => /^доступн/i.test(String(v).trim());
 
+// Колонка-галочка «Публікація»: книга дозволена до показу на сайті. Не скасовує інших умов — ціна, наявність
+// чи передзамовлення потрібні, як і раніше. Без галочки книги немає ні на сайті, ні в замовленнях.
+// Колонки в каталозі немає зовсім — показуються всі книги, як до її появи
+const PUBLISH_COL = 'Публікація';
+// галочка (TRUE); вписане руками «так», «+», «1» — теж так; порожньо, FALSE, інше — ні
+const publishedOn_ = v => v === true || /^(true|так|1|\+|✓|✔)$/i.test(String(v).trim());
+
+// Галочки в колонці «Публікація» (col — номер з 1) для всіх рядків каталогу; самі галочки не ставляться —
+// нова колонка порожня, і кожну книгу треба дозволити до публікації вручну.
+// У таблиці Google з типами колонок галочки дає тип колонки — тоді пропускаємо
+function publishCheckboxes_(sheet, col) {
+  sheet.getRange(2, col, Math.max(sheet.getMaxRows() - 1, 1), 1).insertCheckboxes();
+}
+
 // Запустіть вручну один раз (і щоразу, коли додали рядки в каталог за межами випадних списків).
 // У таблиці з книгами:
 //  - створює аркуш «Категорії» з випадним списком батьківської категорії;
 //  - створює аркуш «Добірки» (назва, опис, номери книг, адреса сторінки);
 //  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Передзамовлення»,
-//    «Видавництво», «Акційна ціна», «ISBN»;
-//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова, передзамовлення — з FIELD_OPTIONS.
+//    «Публікація», «Видавництво», «Акційна ціна», «ISBN»;
+//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова, передзамовлення — з FIELD_OPTIONS;
+//  - у «Публікації» — галочки (не відмічені: нову колонку треба заповнити вручну, до того книг на сайті не буде).
 // Аркуш, перетворений на таблицю Google (Формат → Перетворити на таблицю), не дає міняти списки й формат у колонках
 // з типом — там тип колонки робить те саме. Такі кроки пропускаються (список — у журналі виконання), решта виконується
 function setupCatalog() {
@@ -288,6 +304,8 @@ function setupCatalog() {
       .setAllowInvalid(STRICT_FIELDS.indexOf(name) < 0)
       .build()));
   });
+  const publishCol = column(PUBLISH_COL);
+  format(`каталог, галочки в колонці «${PUBLISH_COL}»`, () => publishCheckboxes_(books, publishCol));
   column('Видавництво');
   column('Акційна ціна');
   // ISBN — як текст: інакше таблиця вважає його числом і з'їдає нуль на початку ISBN-10
@@ -534,9 +552,12 @@ function readCatalog_() {
     isbn: col('ISBN'),
   };
   const preorder = col('Передзамовлення');
+  const publish = col(PUBLISH_COL);
 
   return values.slice(1)
     .filter(r => String(r[c.title]).trim())
+    // без галочки «Публікація» книги немає ні на сайті, ні в замовленнях (немає колонки — показуємо всі)
+    .filter(r => publish < 0 || publishedOn_(r[publish]))
     .map(r => {
       const book = {
         id: String(r[c.id]).trim(),
@@ -699,6 +720,7 @@ const FORM_FIELDS = {
   price: 'Ціна', salePrice: 'Акційна ціна', stock: 'К-сть',
   category: 'Категорія', condition: 'Стан', binding: 'Обкладинка', language: 'Мова',
   publisher: 'Видавництво', isbn: 'ISBN', description: 'Опис', preorder: 'Передзамовлення',
+  publish: PUBLISH_COL, // 'true' / 'false'; у таблиці — галочка
 };
 const FORM_NUMBERS = ['year', 'pages', 'price', 'salePrice', 'stock'];
 
@@ -777,6 +799,9 @@ function formGetBook(id) {
     const c = col(FORM_FIELDS[key]);
     book[key] = c < 0 ? '' : String(values[row][c]).trim();
   });
+  // немає колонки — книга на сайті, як і всі
+  const pub = col(PUBLISH_COL);
+  book.publish = pub < 0 || publishedOn_(values[row][pub]) ? 'true' : 'false';
   book.photoCount = formPhotoNumbers_(book.id).length;
   return book;
 }
@@ -818,6 +843,7 @@ function formValidate_(b, categories) {
 function formSaveBook(input, isNew) {
   const b = {};
   Object.keys(FORM_FIELDS).forEach(k => { b[k] = String(input[k] == null ? '' : input[k]).trim(); });
+  b.publish = publishedOn_(b.publish) ? 'true' : 'false';
   const error = formValidate_(b, readCategories_());
   if (error) throw new Error(error);
 
@@ -848,10 +874,16 @@ function formSaveBook(input, isNew) {
       if (c < 0) {
         if (!v) return;
         c = formAddColumn_(sheet, head, name);
+        // нова колонка «Публікація» — порожні галочки в усіх рядках
+        if (key === 'publish') {
+          try { publishCheckboxes_(sheet, c + 1); } catch (err) { console.warn(err.message); }
+        }
       }
       if (String(old[c] == null ? '' : old[c]).trim() === v) return;
       const cell = sheet.getRange(row, c + 1);
-      if (key === 'isbn') {
+      if (key === 'publish') {
+        cell.setValue(v === 'true');
+      } else if (key === 'isbn') {
         // текстом: інакше таблиця з'їсть нуль на початку ISBN-10
         cell.setNumberFormat('@').setValue(v);
       } else if (v && (FORM_NUMBERS.indexOf(key) >= 0 || (key === 'id' && /^\d+$/.test(v)))) {

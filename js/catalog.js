@@ -229,9 +229,6 @@ function applyFilter(keepPage) {
     'newest': (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
     'title': (a, b) => collator.compare(a.title, b.title),
     'author': (a, b) => collator.compare(a.author || '￿', b.author || '￿'),
-    'price-asc': (a, b) => a.price - b.price,
-    'price-desc': (a, b) => b.price - a.price,
-    'year-desc': (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0),
   };
   filtered.sort(sorters[sortBy]);
   if (!keepPage) pageNo = 1;
