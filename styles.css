@@ -411,6 +411,16 @@ header { padding: 56px 16px 32px; }
 @media (hover: hover) {
   .grid .row.in-cart:hover { background: var(--glass-strong); }
 }
+/* наведення у вітрині каталогу: картка трохи піднімається, тінь глибшає — як книга на полиці добірки.
+   Лише #list: на полицях своя поведінка (піднімається сама обкладинка, див. .shelf) */
+@media (hover: hover) {
+  #list.grid .row { transition: background-color .15s, box-shadow .2s, transform .2s cubic-bezier(.2, .8, .2, 1); }
+  #list.grid .row:hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
+  #list.grid .row.in-cart:hover { box-shadow: 0 0 0 2px var(--gilt), var(--shadow-lg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #list.grid .row { transition: background-color .15s, box-shadow .2s; }
+}
 /* обкладинка — верх картки, від краю до краю */
 .grid .row .cover {
   grid-column: 1 / -1; grid-row: auto; align-self: auto;
@@ -654,9 +664,9 @@ header { padding: 56px 16px 32px; }
 /* ряд книг: на всю ширину вітрини; мало книг — стоять по центру, багато — наступна визирає з-за краю */
 .shelf-row {
   display: flex; gap: 26px;
-  /* ряд гортається вбік, тож обрізає все, що виходить за нього, і згори теж: 8px зверху — місце для
-     золотої рамки книги в кошику (виступає над обкладинкою на 6px); відступ від заголовка лишається 22px */
-  list-style: none; margin: 14px 0 0; padding: 8px 30px 4px;
+  /* ряд гортається вбік, тож обрізає все, що виходить за нього, і згори теж: 14px зверху — місце для книги,
+     піднятої при наведенні (6px), разом із золотою рамкою книги в кошику (ще 6px); відступ від заголовка — як і був, 22px */
+  list-style: none; margin: 8px 0 0; padding: 14px 30px 4px;
   overflow-x: auto; overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory; scroll-padding: 0 30px;
   scrollbar-width: none;
@@ -679,6 +689,17 @@ header { padding: 56px 16px 32px; }
   box-shadow: 0 2px 3px rgba(0, 0, 0, .45), 0 24px 34px -14px rgba(0, 0, 0, .85);
 }
 .shelf .row.in-cart .cover { outline: 2px solid var(--gilt); outline-offset: 4px; }
+/* наведення: книгу ніби беруть з полиці — трохи піднімається, тінь глибшає (і для книг у кошику) */
+@media (hover: hover) {
+  .shelf .row .cover { transition: transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s; }
+  .shelf .row:hover .cover {
+    transform: translateY(-6px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, .4), 0 34px 44px -16px rgba(0, 0, 0, .9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shelf .row .cover { transition: none; }
+}
 .shelf .row .title { font-size: 15.5px; }
 /* добірка більша за вітрину — в кінці ряду порожнє місце з посиланням на всю добірку */
 .shelf-more a {
