@@ -44,13 +44,22 @@ function openBook(b) {
 function drawPhotos() {
   const { photos } = shelf;
   const n = photos.length;
+  // без фото ліва сторінка не зникає: на ній тканинна палітурка, як на вітрині
   $('book').classList.toggle('has-photos', n > 0);
-  $('bookPhotos').hidden = !n;
+  $('book').classList.toggle('has-cloth', !n);
+  $('bookImg').hidden = !n;
+  $('bookCloth').hidden = !!n;
+  // палітурка лише прикраса: назва вже є в заголовку
+  if (n) $('bookPhotos').removeAttribute('aria-hidden');
+  else $('bookPhotos').setAttribute('aria-hidden', 'true');
   $('bookPrev').hidden = $('bookNext').hidden = n < 2;
   const thumbs = $('bookThumbs');
   thumbs.textContent = '';
   thumbs.hidden = n < 2;
-  if (!n) return;
+  if (!n) {
+    paintCloth($('bookCloth'), shelf.book);
+    return;
+  }
   if (n > 1) photos.forEach((id, i) => {
     const btn = el('button');
     btn.type = 'button';
@@ -93,7 +102,7 @@ function loadBig(id, onload) {
   big.src = photoUrl(id, 1200);
 }
 
-// файл видалили або закрили доступ — прибираємо фото; не лишилося жодного — книга в одну сторінку
+// файл видалили або закрили доступ — прибираємо фото; не лишилося жодного — тканинна палітурка
 $('bookImg').addEventListener('error', () => {
   const id = $('bookImg').dataset.photo;
   if (!id) return;

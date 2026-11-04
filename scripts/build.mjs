@@ -145,8 +145,11 @@ function bookArticle(b) {
     .map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
   const desc = paragraphs(b.description).map(p => `<p>${esc(p)}</p>`).join('');
   return `<a class="back glass" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Усі книги</a>
-  <article class="book-page glass${photo ? '' : ' no-photo'}">
-    ${photo ? `<div class="page-photo"><img src="${photoUrl(photo, 800)}" alt="${esc(b.title)}" referrerpolicy="no-referrer"></div>` : ''}
+  <article class="book-page glass">
+    <div class="page-photo">${photo
+      ? `<img src="${photoUrl(photo, 800)}" alt="${esc(b.title)}" referrerpolicy="no-referrer">`
+      // без фото — тканинна палітурка, як на вітрині і в картці (paintCloth у js/catalog.js)
+      : clothCover(b, 'cover blank big')}</div>
     <div class="page-text">
       <h1>${esc(b.title)}</h1>
       ${by ? `<p class="book-by">${by}</p>` : ''}
@@ -263,6 +266,13 @@ const store = {
 // Розмітка — та сама, що в bookRow/bookCover (js/catalog.js) для вітрини: міняєте там — міняйте й тут
 const CLOTHS = [['#2c2d30', '#d9d8d3'], ['#45484d', '#e4e3de'], ['#8a8c8f', '#f4f4f2'], ['#e6e5e0', '#3a3b3e'], ['#cfcdc6', '#2c2d30']];
 const clothOf = id => CLOTHS[[...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % CLOTHS.length];
+// тканинна палітурка книги без фото — як paintCloth у js/catalog.js
+function clothCover(b, cls, badges = '') {
+  const [cloth, stamp] = clothOf(b.id);
+  return `<div class="${cls}" aria-hidden="true" style="--cloth: ${cloth}; --stamp: ${stamp};">` +
+    `<span class="cover-letter">${esc((b.title || '').trim().charAt(0).toUpperCase())}</span>` +
+    `<span class="cover-title">${esc(b.title)}</span><span class="cover-author">${esc(b.author || '')}</span>${badges}</div>`;
+}
 const plural = (n, one, few, many) => {
   const m10 = n % 10, m100 = n % 100;
   if (m10 === 1 && m100 !== 11) return one;
@@ -279,10 +289,7 @@ function staticRow(b) {
     const img = cls => `<img class="${cls}" src="${photoUrl(photo, 480)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
     cover = `<div class="cover photo fill" aria-hidden="true">${img('cover-bg')}${img('cover-img')}${badges}</div>`;
   } else {
-    const [cloth, stamp] = clothOf(b.id);
-    cover = `<div class="cover blank" aria-hidden="true" style="--cloth: ${cloth}; --stamp: ${stamp};">` +
-      `<span class="cover-letter">${esc((b.title || '').trim().charAt(0).toUpperCase())}</span>` +
-      `<span class="cover-title">${esc(b.title)}</span><span class="cover-author">${esc(b.author || '')}</span>${badges}</div>`;
+    cover = clothCover(b, 'cover blank', badges);
   }
   const photos = b.photos?.length > 1 && b.photos.length + ' фото';
   const meta = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', photos].filter(Boolean).join(' · ');

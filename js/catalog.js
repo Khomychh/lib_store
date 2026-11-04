@@ -321,6 +321,19 @@ const CLOTHS = [
 ];
 const clothOf = id => CLOTHS[[...String(id)].reduce((h, c) => h * 31 + c.charCodeAt(0) >>> 0, 7) % CLOTHS.length];
 
+// Тканинна палітурка книги без фото: колір тканини за номером книги, назва й автор тисненням.
+// Та сама — на вітрині і великою на лівій сторінці картки книги (js/book.js)
+function paintCloth(box, b) {
+  const [cloth, stamp] = clothOf(b.id);
+  box.style.setProperty('--cloth', cloth);
+  box.style.setProperty('--stamp', stamp);
+  box.replaceChildren(
+    el('span', 'cover-letter', (b.title || '').trim().charAt(0).toUpperCase()),
+    el('span', 'cover-title', b.title),
+    el('span', 'cover-author', b.author || ''),
+  );
+}
+
 // Рамка обкладинки 5:7, як у CSS. Фото, що відрізняється від неї не більше ніж на 12%
 // (від 2:3 до 3:4), заповнює рамку повністю — назва й автор на обкладинці при цьому вціліють
 const COVER_RATIO = 5 / 7;
@@ -336,15 +349,8 @@ function bookCover(b) {
     if (discount(b)) box.append(el('span', 'ribbon', `−${discount(b)}%`));
   };
   const blank = () => {
-    const [cloth, stamp] = clothOf(b.id);
     box.className = 'cover blank';
-    box.style.setProperty('--cloth', cloth);
-    box.style.setProperty('--stamp', stamp);
-    box.replaceChildren(
-      el('span', 'cover-letter', (b.title || '').trim().charAt(0).toUpperCase()),
-      el('span', 'cover-title', b.title),
-      el('span', 'cover-author', b.author || ''),
-    );
+    paintCloth(box, b);
     badge();
   };
   const id = b.photos?.[0];
