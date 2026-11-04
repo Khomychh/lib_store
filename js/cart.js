@@ -25,9 +25,10 @@ function cartControl(b, row, wide) {
     minus.type = 'button'; minus.setAttribute('aria-label', 'Менше');
     const plus = el('button', null, '+');
     plus.type = 'button'; plus.setAttribute('aria-label', 'Більше');
-    plus.disabled = q >= b.stock;
+    plus.disabled = q >= maxQty(b);
     const input = el('input');
-    input.type = 'number'; input.min = 0; input.max = b.stock; input.inputMode = 'numeric';
+    input.type = 'number'; input.min = 0; input.inputMode = 'numeric';
+    if (!b.preorder) input.max = b.stock;
     input.value = q;
     input.setAttribute('aria-label', 'Кількість');
 
@@ -46,7 +47,7 @@ function cartControl(b, row, wide) {
 
 function setQty(id, q) {
   const b = byId.get(id);
-  q = Math.max(0, Math.min(b.stock, q));
+  q = Math.max(0, Math.min(maxQty(b), q));
   if (q) cart[id] = q; else delete cart[id];
   saveCart();
   updateCartBar();
@@ -104,6 +105,9 @@ function renderLines() {
     name.append(el('div', 'title', book.title));
     if (book.author) name.append(el('div', 'meta', book.author));
     if (qty > 1) name.append(el('div', 'meta', `${qty} × ${money(book.price)}`));
+    // що піде передзамовленням: уся книга або лише примірники понад наявність
+    const pre = preorderPart(book, qty);
+    if (pre) name.append(el('div', 'pre', pre === qty ? 'Передзамовлення' : `Передзамовлення: ${pre} шт.`));
     const rm = el('button', 'remove');
     rm.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
     rm.type = 'button'; rm.title = 'Прибрати';

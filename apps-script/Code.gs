@@ -2,7 +2,7 @@
  * Бекенд книжкового магазину (Google Apps Script).
  *
  * Скрипт прив'язаний до таблиці ЗАМОВЛЕНЬ (Розширення → Apps Script).
- *   GET  → повертає JSON зі списком книг у наявності з таблиці-каталогу
+ *   GET  → повертає JSON зі списком книг у наявності (і тих, що можна передзамовити) з таблиці-каталогу
  *   POST → записує замовлення в два аркуші:
  *          «Замовлення» — один рядок на замовлення, з колонкою «Статус»
  *          «Позиції»    — один рядок на кожну книгу, пов'язаний номером замовлення
@@ -37,7 +37,8 @@ const ORDER_HEADERS = [
   'Спосіб доставки', 'Адреса доставки', 'Отримувач', 'Оплата', 'Коментар',
   'Книг, шт.', 'Сума', 'Склад замовлення', 'Статус',
 ];
-const ITEM_HEADERS = ['Дата', '№ замовлення', '№ книги', 'Автор', 'Назва', 'Ціна', 'К-сть', 'Сума'];
+// «Передзамовлення, шт.» — скільки з «К-сть» понад наявність (порожньо — усе є в наявності)
+const ITEM_HEADERS = ['Дата', '№ замовлення', '№ книги', 'Автор', 'Назва', 'Ціна', 'К-сть', 'Сума', 'Передзамовлення, шт.'];
 
 const STATUS_COL = ORDER_HEADERS.length; // «Статус» — остання колонка аркуша «Замовлення»
 const NEW_STATUS = 'Нове';
@@ -64,7 +65,8 @@ const STATUSES = [
 function doGet() {
   const photos = photos_();
   const books = readCatalog_()
-    .filter(b => b.stock > 0)
+    // з К-сть 0 лишаються лише книги, які можна передзамовити
+    .filter(b => b.stock > 0 || b.preorder)
     .map(b => Object.assign(b, { photos: photos[b.id.toLowerCase()] || [] }));
   return json_({ ok: true, books, categories: readCategories_() });
 }
@@ -109,19 +111,24 @@ function readCategories_() {
 // Підказки у випадних списках каталогу. «Стан» — лише з цього списку; в інші колонки можна вписати
 // й інше значення (таблиця лише попередить), і воно з'явиться у фільтрі на сайті, тож пишіть однаково:
 // «Тверда», а не «тверда» чи «Тверда обкладинка»
-const STRICT_FIELDS = ['Стан'];
+const STRICT_FIELDS = ['Стан', 'Передзамовлення'];
 const FIELD_OPTIONS = {
   'Стан': ['Нова', 'Вживана'],
   'Обкладинка': ['Тверда', 'М’яка', 'Інтегральна'],
   'Мова': ['Українська', 'Англійська', 'Російська'],
+  // «Доступне» — книгу можна замовити понад наявність, а з К-сть 0 вона не зникає з сайту;
+  // «Недоступне» чи порожньо — продається лише те, що є
+  'Передзамовлення': ['Доступне', 'Недоступне'],
 };
+// «Доступне», «доступне» — так; «Недоступне», «Не доступне», порожньо — ні
+const preorderOn_ = v => /^доступн/i.test(String(v).trim());
 
 // Запустіть вручну один раз (і щоразу, коли додали рядки в каталог за межами випадних списків).
 // У таблиці з книгами:
 //  - створює аркуш «Категорії» з випадним списком батьківської категорії;
-//  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Видавництво»,
-//    «Акційна ціна», «ISBN»;
-//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова — з FIELD_OPTIONS
+//  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Передзамовлення»,
+//    «Видавництво», «Акційна ціна», «ISBN»;
+//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова, передзамовлення — з FIELD_OPTIONS
 function setupCatalog() {
   const ss = catalog_();
   let sheet = ss.getSheetByName(CATEGORIES_SHEET);
@@ -274,11 +281,13 @@ function doPost(e) {
       const book = byId[id];
       const qty = qtyById[id];
       if (!book) return;
-      if (qty > book.stock) {
-        problems.push(`«${book.title}»: доступно лише ${book.stock} шт.`);
+      const stock = Math.max(0, book.stock);
+      // понад наявність — лише під передзамовлення
+      if (qty > stock && !book.preorder) {
+        problems.push(stock ? `«${book.title}»: доступно лише ${stock} шт.` : `«${book.title}» уже продано.`);
         return;
       }
-      lines.push({ book, qty, sum: book.price * qty });
+      lines.push({ book, qty, sum: book.price * qty, pre: Math.max(0, qty - stock) });
     });
 
     if (problems.length) return json_({ ok: false, error: problems.join('\n') });
@@ -296,11 +305,13 @@ function doPost(e) {
 
     const pcs = lines.reduce((s, l) => s + l.qty, 0);
     const summary = lines
-      .map(l => `№${l.book.id} ${l.book.author ? l.book.author + ', ' : ''}«${l.book.title}» × ${l.qty} — ${l.sum} грн`)
+      .map(l => `№${l.book.id} ${l.book.author ? l.book.author + ', ' : ''}«${l.book.title}» × ${l.qty} — ${l.sum} грн` +
+        (l.pre ? ` (передзамовлення: ${l.pre} шт.)` : ''))
       .join('\n');
+    const preorders = lines.reduce((s, l) => s + l.pre, 0);
 
     appendRows_(itemsSheet_(), lines.map(l => [
-      now, orderId, l.book.id, text_(l.book.author), text_(l.book.title), l.book.price, l.qty, l.sum,
+      now, orderId, l.book.id, text_(l.book.author), text_(l.book.title), l.book.price, l.qty, l.sum, l.pre || '',
     ]));
 
     const orders = ordersSheet_();
@@ -315,6 +326,7 @@ function doPost(e) {
     // null — рядок пропускається, '' — порожній рядок-роздільник
     notifyTelegram_([
       `🛒 Нове замовлення ${orderId}`,
+      preorders ? `⏳ Є передзамовлення: ${preorders} шт.` : null,
       '',
       `${str_(customer.name)}, ${str_(customer.phone)}`,
       str_(customer.email) || null,
@@ -391,6 +403,7 @@ function readCatalog_() {
     // ISBN з книги (10 чи 13 цифр, дефіси не заважають) — потрібен Google Покупкам; у старих книг його може не бути
     isbn: col('ISBN'),
   };
+  const preorder = col('Передзамовлення');
 
   return values.slice(1)
     .filter(r => String(r[c.title]).trim())
@@ -418,6 +431,7 @@ function readCatalog_() {
         const value = optional[key] < 0 ? '' : String(r[optional[key]]).trim();
         if (value) book[key] = value;
       });
+      if (preorder >= 0 && preorderOn_(r[preorder])) book.preorder = true;
       return book;
     })
     // книга без ціни (порожньо, 0 або текст) не продається — інакше була б безкоштовною
@@ -470,7 +484,15 @@ function ordersSheet_() {
 
 function itemsSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  return ss.getSheetByName(ITEMS_SHEET) || createSheet_(ss, ITEMS_SHEET, ITEM_HEADERS);
+  const sheet = ss.getSheetByName(ITEMS_SHEET);
+  if (!sheet) return createSheet_(ss, ITEMS_SHEET, ITEM_HEADERS);
+  // аркуш, створений до появи передзамовлень: дописуємо заголовок нової колонки, старі рядки не чіпаємо
+  const col = ITEM_HEADERS.length;
+  if (String(sheet.getRange(1, col).getValue()).trim() !== ITEM_HEADERS[col - 1]) {
+    if (col > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), col - sheet.getMaxColumns());
+    sheet.getRange(1, col).setValue(ITEM_HEADERS[col - 1]).setFontWeight('bold');
+  }
+  return sheet;
 }
 
 function createSheet_(ss, name, headers) {
@@ -546,7 +568,7 @@ const FORM_FIELDS = {
   id: '№', title: 'Назва', author: 'Автор', year: 'Рік', pages: 'Сторінки',
   price: 'Ціна', salePrice: 'Акційна ціна', stock: 'К-сть',
   category: 'Категорія', condition: 'Стан', binding: 'Обкладинка', language: 'Мова',
-  publisher: 'Видавництво', isbn: 'ISBN', description: 'Опис',
+  publisher: 'Видавництво', isbn: 'ISBN', description: 'Опис', preorder: 'Передзамовлення',
 };
 const FORM_NUMBERS = ['year', 'pages', 'price', 'salePrice', 'stock'];
 
@@ -654,6 +676,7 @@ function formValidate_(b, categories) {
     if (b[k] && !/^\d+$/.test(b[k])) errors.push(`${FORM_FIELDS[k]} — лише цифри.`);
   });
   if (b.condition && FIELD_OPTIONS['Стан'].indexOf(b.condition) < 0) errors.push('Стан — зі списку.');
+  if (b.preorder && FIELD_OPTIONS['Передзамовлення'].indexOf(b.preorder) < 0) errors.push('Передзамовлення — зі списку.');
   if (b.category && categories.length && !categories.some(c => c.name === b.category)) {
     errors.push(`Категорії «${b.category}» немає на аркуші «${CATEGORIES_SHEET}».`);
   }

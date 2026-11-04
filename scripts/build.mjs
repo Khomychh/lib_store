@@ -2,7 +2,7 @@
 //
 // Що робить:
 //  - копіює файли сайту як є;
-//  - бере каталог з Apps Script і для кожної книги в наявності робить сторінку /book/<№>/ — лише з цією книгою
+//  - бере каталог з Apps Script і для кожної книги (у наявності чи під передзамовлення) робить сторінку /book/<№>/ — лише з цією книгою
 //    (пошук і каталог ховаються, див. body[data-book] у стилях), власною назвою, описом, прев'ю для месенджерів
 //    і розміткою товару для Google;
 //  - на всі сторінки дописує адресу, прев'ю й розмітку магазину; робить sitemap.xml, robots.txt і 404.html;
@@ -133,7 +133,7 @@ function priceLines(b) {
   const price = off
     ? `<div class="price sale"><span class="sr-only">Ціна зі знижкою: </span>${money(b.price)}</div>`
     : `<div class="price">${money(b.price)}</div>`;
-  return was + price + `<div class="stock">в наявності: ${b.stock}</div>`;
+  return was + price;
 }
 
 // Розмітка — як у картці книги (openBook і bookFacts у js/book.js): ліворуч книга й покупка, праворуч текст
@@ -216,7 +216,8 @@ function bookData(b) {
       url: bookUrl(b),
       price: b.price,
       priceCurrency: 'UAH',
-      availability: 'https://schema.org/InStock',
+      // немає в наявності, але можна передзамовити
+      availability: b.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/PreOrder',
       itemCondition: isUsed(b) ? 'https://schema.org/UsedCondition' : 'https://schema.org/NewCondition',
       seller: { '@type': 'Organization', name: NAME },
     },
@@ -451,7 +452,8 @@ const productText = b => paragraphs(b.description).join(' ') || [
   b.binding && `Обкладинка: ${b.binding.toLowerCase()}`,
   b.condition && `Стан: ${b.condition.toLowerCase()}`,
 ].filter(Boolean).map(sentence).join(' ');
-const products = books.filter(b => b.photos?.length).map(b => {
+// Лише книги з фото і в наявності: передзамовлення Google вимагає з датою надходження, якої в таблиці немає
+const products = books.filter(b => b.photos?.length && b.stock > 0).map(b => {
   const f = [
     ['g:id', b.id],
     // Google радить у назві книги — назву й автора

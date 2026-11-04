@@ -185,11 +185,11 @@ function setBooks(catalog, keepPage) {
   // категорія з посилання чи з минулого показу могла спорожніти — тоді показуємо всі книги
   const anyCategory = [...cats.values()].some(hasBooks);
   if (!anyCategory || (cat === NONE ? !uncategorized : cat && !cats.get(cat)?.count)) cat = '';
-  // прибрати з кошика те, чого вже немає або менше в наявності
+  // прибрати з кошика те, чого вже немає або менше в наявності (крім передзамовлення — там без обмеження)
   for (const id of Object.keys(cart)) {
     const b = byId.get(id);
     if (!b) delete cart[id];
-    else cart[id] = Math.min(cart[id], b.stock);
+    else cart[id] = Math.min(cart[id], maxQty(b));
   }
   saveCart();
   pruneFilters();
@@ -294,7 +294,13 @@ function bookRow(b) {
 // і oldPrice — звичайну ціну, лише коли акційна справді менша
 const discount = b => b.oldPrice > b.price ? Math.round((1 - b.price / b.oldPrice) * 100) : 0;
 
-// Ціна, під акцію — перекреслена стара зі знижкою над нею, і наявність
+// Скільки примірників можна покласти в кошик: під передзамовлення — скільки завгодно, інакше — скільки є.
+// Саму наявність на сайті не показуємо
+const maxQty = b => b.preorder ? Infinity : b.stock;
+// Скільки з q піде передзамовленням (понад наявність)
+const preorderPart = (b, q) => b.preorder ? Math.max(0, q - Math.max(0, b.stock)) : 0;
+
+// Ціна, під акцію — перекреслена стара зі знижкою над нею
 function priceLines(b) {
   const off = discount(b);
   const lines = [];
@@ -307,7 +313,7 @@ function priceLines(b) {
   }
   const price = el('div', off ? 'price sale' : 'price', money(b.price));
   if (off) price.prepend(el('span', 'sr-only', 'Ціна зі знижкою: '));
-  lines.push(price, el('div', 'stock', `в наявності: ${b.stock}`));
+  lines.push(price);
   return lines;
 }
 

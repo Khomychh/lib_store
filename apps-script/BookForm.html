@@ -86,7 +86,7 @@
       <div><label>Сторінки</label><input name="pages" inputmode="numeric"><div class="hint" data-for="pages"></div></div>
 
       <div class="w2"><label>ISBN</label><input name="isbn"><div class="hint" data-for="isbn"></div></div>
-      <div class="w2"></div>
+      <div class="w2"><label>Передзамовлення <small>(можна замовити більше, ніж є)</small></label><select name="preorder"><option value="">— (недоступне) —</option><option>Доступне</option><option>Недоступне</option></select></div>
 
       <div class="w4"><label>Опис <small>(новий рядок — новий абзац)</small></label><textarea name="description"></textarea></div>
     </div>
@@ -111,7 +111,7 @@ const $ = s => document.querySelector(s);
 const form = $('#form');
 const field = name => form.elements[name];
 const FIELDS = ['id', 'title', 'author', 'year', 'pages', 'price', 'salePrice', 'stock',
-  'category', 'condition', 'binding', 'language', 'publisher', 'isbn', 'description'];
+  'category', 'condition', 'binding', 'language', 'publisher', 'isbn', 'description', 'preorder'];
 // після «Додати» ці поля лишаються: зручно вносити пачку книг одного розділу
 const STICKY = ['category', 'condition', 'binding', 'language'];
 
@@ -283,6 +283,16 @@ function fillConditions(extra) {
   list.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
 }
 
+// Значення з таблиці, якого немає серед варіантів списку (напр., «Не доступне»): додаємо його, щоб збереження не стерло
+function keepOption(sel, value) {
+  sel.querySelectorAll('option[data-extra]').forEach(o => o.remove());
+  if (!value || [...sel.options].some(o => o.value === value)) return;
+  const o = document.createElement('option');
+  o.value = o.textContent = value;
+  o.dataset.extra = '1';
+  sel.appendChild(o);
+}
+
 // Підказка під полем, де можна вписати своє значення
 const LISTS = { author: 'authors', publisher: 'publishers', binding: 'bindings', language: 'languages' };
 function listHint(name) {
@@ -334,7 +344,9 @@ function check() {
   if (!(price > 0)) errors.price = 'Число більше 0';
   const stock = num(v.stock);
   if (stock === null || !Number.isInteger(stock) || stock < 0) errors.stock = 'Ціле число від 0';
-  else if (stock === 0) warnings.stock = 'З К-сть 0 книга не показується на сайті';
+  else if (stock === 0) warnings.stock = /^доступн/i.test(v.preorder)
+    ? 'Немає в наявності — на сайті лише під передзамовлення'
+    : 'З К-сть 0 книга не показується на сайті';
   const sale = num(v.salePrice);
   if (sale !== null) {
     if (!(sale > 0 && sale < price)) errors.salePrice = 'Менша за ціну або порожньо';
@@ -458,6 +470,7 @@ async function openBook(id) {
     resetForm();
     editing = book.id;
     fillConditions(book.condition);
+    keepOption(field('preorder'), book.preorder);
     FIELDS.forEach(k => { field(k).value = book[k]; });
     $('#photoInfo').textContent = data.photos ? `(уже є: ${book.photoCount}; нові додадуться після них)` : '';
     clearPhotos();
