@@ -289,8 +289,6 @@ header { padding: 56px 16px 32px; }
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .4));
 }
 /* звичайного формату книга заповнює рамку сама, без фону: зрізаються лише кілька відсотків з країв */
-.cover.fill .cover-img { object-fit: cover; filter: none; }
-.cover.fill .cover-bg { display: none; }
 /* на фото справжня палітурка — намальований корінець їй не потрібен */
 .cover.photo::after { background: none; }
 .grid .cover .cover-bg { filter: blur(16px) brightness(.72) saturate(1.15); }

@@ -326,7 +326,7 @@ function staticRow(b) {
   let cover;
   if (photo) {
     const img = cls => `<img class="${cls}" src="${photoUrl(photo, 480)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
-    cover = `<div class="cover photo fill" aria-hidden="true">${img('cover-bg')}${img('cover-img')}${badges}</div>`;
+    cover = `<div class="cover photo" aria-hidden="true">${img('cover-bg')}${img('cover-img')}${badges}</div>`;
   } else {
     cover = clothCover(b, 'cover blank', badges);
   }

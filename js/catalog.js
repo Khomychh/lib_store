@@ -375,12 +375,8 @@ function paintCloth(box, b) {
   );
 }
 
-// Рамка обкладинки 5:7, як у CSS. Фото, що відрізняється від неї не більше ніж на 12%
-// (від 2:3 до 3:4), заповнює рамку повністю — назва й автор на обкладинці при цьому вціліють
-const COVER_RATIO = 5 / 7;
-const FILL_TOLERANCE = 0.12;
-
-// Перше фото книги як обкладинка; немає фото або воно не відкрилося — тканинна палітурка.
+// Перше фото книги як обкладинка, завжди ціле — нічого не обрізається; немає фото або воно не відкрилося —
+// тканинна палітурка.
 // plain — без позначок стану й знижки (мініатюра в замовленні); grid — велика обкладинка вітрини
 function bookCover(b, plain, grid = view === 'grid') {
   const box = el('div', 'cover');
@@ -411,11 +407,6 @@ function bookCover(b, plain, grid = view === 'grid') {
   };
   const front = layer('cover-img');
   front.onerror = blank;
-  // розмитий фон лишаємо лише незвичним форматам: альбомним, квадратним, дуже вузьким
-  front.onload = () => {
-    const fit = front.naturalWidth / front.naturalHeight / COVER_RATIO;
-    box.classList.toggle('fill', Math.abs(fit - 1) <= FILL_TOLERANCE);
-  };
   box.classList.add('photo');
   box.append(layer('cover-bg'), front);
   badge();
