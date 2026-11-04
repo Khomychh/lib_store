@@ -668,7 +668,8 @@ header { padding: 56px 16px 32px; }
 /* чотири книги й край п'ятої — трохи більші, ніж у каталозі */
 .shelf-row > li { flex: 0 0 clamp(170px, calc((100% - 60px - 4 * 26px) / 4.4), 250px); scroll-snap-align: start; }
 /* книга у вітрині — обкладинка просто на склі, під нею назва й ціна; без скляної картки */
-.shelf .row, .shelf .row:hover, .shelf .row.in-cart {
+/* .shelf .row.in-cart:hover — окремо: інакше перемагає сильніше .grid .row.in-cart:hover зі світлим фоном картки */
+.shelf .row, .shelf .row:hover, .shelf .row.in-cart, .shelf .row.in-cart:hover {
   padding: 0; border-radius: 0; overflow: visible;
   background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
 }
