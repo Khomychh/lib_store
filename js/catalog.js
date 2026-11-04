@@ -229,6 +229,9 @@ function applyFilter(keepPage) {
     'newest': (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
     'title': (a, b) => collator.compare(a.title, b.title),
     'author': (a, b) => collator.compare(a.author || '￿', b.author || '￿'),
+    // за ціною продажу (акційною, якщо є); однакова ціна — новіші вище
+    'price-asc': (a, b) => a.price - b.price || (Number(b.id) || 0) - (Number(a.id) || 0),
+    'price-desc': (a, b) => b.price - a.price || (Number(b.id) || 0) - (Number(a.id) || 0),
   };
   filtered.sort(sorters[sortBy]);
   if (!keepPage) pageNo = 1;

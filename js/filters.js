@@ -1,34 +1,39 @@
-// Фільтри: стан, обкладинка, мова і категорії (дерево з аркуша «Категорії»), меню «Фільтри».
+// Фільтри: акція, стан, обкладинка, мова і категорії (дерево з аркуша «Категорії»), меню «Фільтри».
 // Добірки (js/collections.js) теж є в меню, але знімаються не «пігулкою», а посиланням «Усі книги» над добіркою
 
-// ---------- Фільтри за станом, обкладинкою і мовою ----------
+// ---------- Фільтри за акцією, станом, обкладинкою і мовою ----------
 // Значення беруться з самих книг; відомі йдуть у цьому порядку, решта — за абеткою після них.
-// У групі можна відмітити кілька (будь-яке з них), між групами — всі одразу
+// У групі можна відмітити кілька (будь-яке з них), між групами — всі одразу.
+// value — як дістати значення з книги, якщо його немає готовим полем (типово — b[key])
 const FACETS = [
+  // акційна — та, у якої є звичайна ціна, вища за ціну продажу (oldPrice передає скрипт, див. discount у js/catalog.js)
+  { key: 'sale', title: 'Акція', order: ['Зі знижкою'], value: b => b.oldPrice > b.price ? 'Зі знижкою' : '' },
   { key: 'condition', title: 'Стан', order: ['Нова', 'Вживана'] },
   { key: 'binding', title: 'Обкладинка', order: ['Тверда', 'Суперобкладинка', 'М’яка', 'Інтегральна'] },
   { key: 'language', title: 'Мова', order: ['Українська', 'Англійська', 'Російська'] },
 ];
 const picked = Object.fromEntries(FACETS.map(f => [f.key, new Set()]));
+const facetOf = (b, f) => f.value ? f.value(b) : b[f.key];
+const facetByKey = key => FACETS.find(f => f.key === key);
 
 // Нова книга — звичайна справа, позначаємо лише вживані
 const isUsed = b => !!b.condition && !/^нов/i.test(b.condition);
 
 function passFilters(b, skip) {
-  return FACETS.every(f => f.key === skip || !picked[f.key].size || picked[f.key].has(b[f.key]));
+  return FACETS.every(f => f.key === skip || !picked[f.key].size || picked[f.key].has(facetOf(b, f)));
 }
 
 function facetValues(f) {
   const collator = new Intl.Collator('uk');
   const rank = v => { const i = f.order.indexOf(v); return i < 0 ? f.order.length : i; };
-  return [...new Set(books.map(b => b[f.key]).filter(Boolean))]
+  return [...new Set(books.map(b => facetOf(b, f)).filter(Boolean))]
     .sort((a, b) => rank(a) - rank(b) || collator.compare(a, b));
 }
 
 // усі книги з вибраним значенням продані — значення зникає з фільтра і перестає фільтрувати
 function pruneFilters() {
   for (const f of FACETS) {
-    for (const v of picked[f.key]) if (!books.some(b => b[f.key] === v)) picked[f.key].delete(v);
+    for (const v of picked[f.key]) if (!books.some(b => facetOf(b, f) === v)) picked[f.key].delete(v);
   }
 }
 
@@ -38,7 +43,7 @@ function toggleFilter(key, value) {
 }
 
 function renderFilters() {
-  const any = categoryRoots().length > 0 || collections.length > 0 || FACETS.some(f => books.some(b => b[f.key]));
+  const any = categoryRoots().length > 0 || collections.length > 0 || FACETS.some(f => books.some(b => facetOf(b, f)));
   $('filter').hidden = !any;
   if (!any) closeFilters();
 
@@ -159,7 +164,7 @@ function updateFilterMenu() {
   const base = searched.filter(b => inCategory(b) && inCollection(b));
   for (const box of menu.querySelectorAll('input[type="checkbox"]')) {
     const { key, value } = box.dataset;
-    const n = base.filter(b => b[key] === value && passFilters(b, key)).length;
+    const n = base.filter(b => facetOf(b, facetByKey(key)) === value && passFilters(b, key)).length;
     box.checked = picked[key].has(value);
     box.parentElement.querySelector('.n').textContent = n;
     box.parentElement.classList.toggle('empty', !n && !box.checked);
