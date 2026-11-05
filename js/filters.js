@@ -42,12 +42,26 @@ function toggleFilter(key, value) {
   applyFilter();
 }
 
+const activeFilters = () => (cat ? 1 : 0) + (coll ? 1 : 0) + FACETS.reduce((s, f) => s + picked[f.key].size, 0);
+
+// «Скинути» в меню: знімає все, що в ньому вибрано (пошук лишається — він не в меню).
+// Відкрита добірка — це окрема сторінка, тож з неї повертаємось на головну, як «Усі книги» над добіркою
+function resetFilters() {
+  for (const f of FACETS) picked[f.key].clear();
+  cat = '';
+  history.replaceState(null, '', location.pathname + location.search);
+  if (coll) { selectColl(''); return; }
+  applyFilter();
+  buildFilterMenu();
+  $('filterMenu').querySelector('input')?.focus();
+}
+
 function renderFilters() {
   const any = categoryRoots().length > 0 || collections.length > 0 || FACETS.some(f => books.some(b => facetOf(b, f)));
   $('filter').hidden = !any;
   if (!any) closeFilters();
 
-  const total = (cat ? 1 : 0) + (coll ? 1 : 0) + FACETS.reduce((s, f) => s + picked[f.key].size, 0);
+  const total = activeFilters();
   $('filterBadge').hidden = !total;
   $('filterBadge').textContent = total;
   $('filterBtn').setAttribute('aria-label', total ? `Фільтри, увімкнено: ${total}` : 'Фільтри');
@@ -107,10 +121,13 @@ function buildFilterMenu() {
 
   // результат видно одразу під меню, але на телефоні меню його закриває — кнопка каже, скільки буде, і закриває меню
   const foot = el('div', 'fm-foot');
+  const reset = el('button', 'fm-reset', 'Скинути');
+  reset.type = 'button';
+  reset.onclick = resetFilters;
   const show = el('button', 'btn fm-show');
   show.type = 'button';
   show.onclick = () => { closeFilters(); $('filterBtn').focus(); };
-  foot.append(show);
+  foot.append(reset, show);
   menu.append(foot);
   updateFilterMenu();
 }
@@ -187,6 +204,7 @@ function updateFilterMenu() {
     radio.parentElement.querySelector('.n').textContent = n;
     radio.parentElement.classList.toggle('empty', !n && !radio.checked);
   }
+  menu.querySelector('.fm-reset').disabled = !activeFilters();
   const show = menu.querySelector('.fm-show');
   if (show) show.textContent = filtered.length
     ? `Показати ${filtered.length} ${plural(filtered.length, 'книгу', 'книги', 'книг')}`
