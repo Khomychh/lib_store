@@ -142,7 +142,7 @@ function priceLines(b) {
 function bookArticle(b) {
   const photo = b.photos?.[0];
   const facts = [['Мова', b.language], ['Стан', b.condition], ['Рік видання', b.year], ['Сторінок', b.pages],
-    ['Видавництво', b.publisher], ['Обкладинка', b.binding], ['ISBN', b.isbn]]
+    ['Видавництво', b.publisher], ['Палітурка', b.binding], ['ISBN', b.isbn]]
     .filter(([, v]) => v)
     .map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
   const desc = paragraphs(b.description).map(p => `<p>${esc(p)}</p>`).join('');
@@ -174,7 +174,7 @@ function bookDescription(b) {
   const parts = [
     `«${b.title}»` + (b.author ? ` — ${b.author}` : '') + (b.year ? `, ${b.year}` : '') + '.',
     b.condition && `Стан: ${b.condition.toLowerCase()}.`,
-    b.binding && `Обкладинка: ${b.binding.toLowerCase()}.`,
+    b.binding && `Палітурка: ${b.binding.toLowerCase()}.`,
     `Ціна ${money(b.price)}. Доставка по Україні.`,
   ];
   return clip(parts.filter(Boolean).join(' '));
@@ -557,7 +557,7 @@ const productText = b => paragraphs(b.description).join(' ') || [
   `«${b.title}»` + (b.author ? ` — ${b.author}` : ''),
   [b.publisher, b.year && b.year + ' р.', b.pages && b.pages + ' с.'].filter(Boolean).join(', '),
   b.language && `Мова: ${b.language.toLowerCase()}`,
-  b.binding && `Обкладинка: ${b.binding.toLowerCase()}`,
+  b.binding && `Палітурка: ${b.binding.toLowerCase()}`,
   b.condition && `Стан: ${b.condition.toLowerCase()}`,
 ].filter(Boolean).map(sentence).join(' ');
 // Лише книги з фото і в наявності: передзамовлення Google вимагає з датою надходження, якої в таблиці немає

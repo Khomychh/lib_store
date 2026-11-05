@@ -197,9 +197,15 @@ function slug_(text) {
 // й інше значення (таблиця лише попередить), і воно з'явиться у фільтрі на сайті, тож пишіть однаково:
 // «Тверда», а не «тверда» чи «Тверда обкладинка»
 const STRICT_FIELDS = ['Стан', 'Передзамовлення'];
+// Колонка «Палітурка» раніше звалася «Обкладинка». Стару назву скрипт розуміє як нову, а setupCatalog
+// перейменовує заголовок у таблиці сам — дані в колонці лишаються
+const BINDING_COL = 'Палітурка';
+const RENAMED_COLS = { 'Обкладинка': BINDING_COL };
+// Заголовки каталогу без пробілів по краях і зі старими назвами, заміненими на нові
+const catalogHead_ = row => row.map(h => String(h).trim()).map(h => RENAMED_COLS[h] || h);
 const FIELD_OPTIONS = {
   'Стан': ['Нова', 'Вживана'],
-  'Обкладинка': ['Тверда', 'Суперобкладинка', 'М’яка', 'Інтегральна'],
+  [BINDING_COL]: ['Тверда', 'Суперобкладинка', 'М’яка', 'Інтегральна'],
   'Мова': ['Українська', 'Англійська', 'Російська'],
   // «Доступне» — книгу можна замовити понад наявність, а з К-сть 0 вона не зникає з сайту;
   // «Недоступне» чи порожньо — продається лише те, що є
@@ -215,21 +221,40 @@ const PUBLISH_COL = 'Публікація';
 // галочка (TRUE); вписане руками «так», «+», «1» — теж так; порожньо, FALSE, інше — ні
 const publishedOn_ = v => v === true || /^(true|так|1|\+|✓|✔)$/i.test(String(v).trim());
 
-// Галочки в колонці «Публікація» (col — номер з 1) для всіх рядків каталогу; самі галочки не ставляться —
-// нова колонка порожня, і кожну книгу треба дозволити до публікації вручну.
+// Галочки в колонці «Публікація» (col — номер з 1) для всіх рядків каталогу.
 // У таблиці Google з типами колонок галочки дає тип колонки — тоді пропускаємо
 function publishCheckboxes_(sheet, col) {
   sheet.getRange(2, col, Math.max(sheet.getMaxRows() - 1, 1), 1).insertCheckboxes();
+}
+
+// Нова колонка «Публікація»: галочка в кожного рядка з назвою, у решти — порожньо.
+// Поки колонки не було, на сайті були всі книги, тож з її появою нічого не зникає;
+// зняти галочку з книги, якої не треба показувати, — вручну. titleCol — номер колонки «Назва» з 1
+function publishFillAll_(sheet, col, titleCol) {
+  const rows = sheet.getLastRow() - 1;
+  if (rows < 1 || titleCol < 1) return;
+  const titles = sheet.getRange(2, titleCol, rows, 1).getValues();
+  sheet.getRange(2, col, rows, 1).setValues(titles.map(([t]) => [Boolean(String(t).trim())]));
+}
+
+// Новий заголовок оформлюємо як перший (колір тексту, заливка, шрифт): вставлена колонка бере формат сусідньої,
+// і в аркуші з кольоровою шапкою заголовок виходив білим на білому — невидимим.
+// Клітинки під заголовком — з кольором тексту за замовчуванням, з тієї ж причини
+function columnLook_(sheet, col) {
+  if (col === 1) return;
+  sheet.getRange(1, 1).copyFormatToRange(sheet, col, col, 1, 1);
+  sheet.getRange(2, col, Math.max(sheet.getMaxRows() - 1, 1), 1).setFontColor(null);
 }
 
 // Запустіть вручну один раз (і щоразу, коли додали рядки в каталог за межами випадних списків).
 // У таблиці з книгами:
 //  - створює аркуш «Категорії» з випадним списком батьківської категорії;
 //  - створює аркуш «Добірки» (назва, опис, номери книг, адреса сторінки);
-//  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Обкладинка», «Мова», «Передзамовлення»,
+//  - перейменовує стару «Обкладинка» на «Палітурка» (RENAMED_COLS);
+//  - додає в кінець каталогу колонки, яких ще немає: «Категорія», «Стан», «Палітурка», «Мова», «Передзамовлення»,
 //    «Публікація», «Видавництво», «Акційна ціна», «ISBN»;
-//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, обкладинка, мова, передзамовлення — з FIELD_OPTIONS;
-//  - у «Публікації» — галочки (не відмічені: нову колонку треба заповнити вручну, до того книг на сайті не буде).
+//  - ставить випадні списки: категорія — лише з аркуша «Категорії», стан, палітурка, мова, передзамовлення — з FIELD_OPTIONS;
+//  - у «Публікації» — галочки; у новій колонці вони одразу відмічені в усіх книг (publishFillAll_).
 // Аркуш, перетворений на таблицю Google (Формат → Перетворити на таблицю), не дає міняти списки й формат у колонках
 // з типом — там тип колонки робить те саме. Такі кроки пропускаються (список — у журналі виконання), решта виконується
 function setupCatalog() {
@@ -278,7 +303,14 @@ function setupCatalog() {
   format('аркуш «Добірки», колонка «Книги» як текст', () => ss.getSheetByName(COLLECTIONS_SHEET).getRange('C2:C').setNumberFormat('@'));
 
   const books = catalogSheet_(ss);
-  const head = books.getRange(1, 1, 1, books.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const rawHead = books.getRange(1, 1, 1, books.getLastColumn()).getValues()[0].map(h => String(h).trim());
+  const head = catalogHead_(rawHead);
+  // старі назви колонок → нові, просто в заголовку (якщо нової колонки ще немає — інакше було б дві однакові)
+  rawHead.forEach((h, i) => {
+    if (RENAMED_COLS[h] && rawHead.indexOf(RENAMED_COLS[h]) < 0) {
+      format(`каталог, перейменування «${h}» на «${RENAMED_COLS[h]}»`, () => books.getRange(1, i + 1).setValue(RENAMED_COLS[h]));
+    }
+  });
   const rows = Math.max(books.getMaxRows() - 1, 1);
   // номер колонки за заголовком; немає — дописуємо її в кінець
   const column = name => {
@@ -290,9 +322,11 @@ function setupCatalog() {
       // getRange падає з помилкою, і решта колонок не додається — тож спершу розширюємо аркуш
       if (col > books.getMaxColumns()) books.insertColumnsAfter(books.getMaxColumns(), col - books.getMaxColumns());
       books.getRange(1, col).setValue(name);
-      // у таблиці Google заголовки оформлює вона сама — жирний шрифт там може бути заборонений
-      format(`каталог, жирний заголовок «${name}»`, () => books.getRange(1, col).setFontWeight('bold'));
     }
+    // і нові, і вже додані раніше: колонки, створені до виправлення, теж стають видимими.
+    // У таблиці Google заголовки оформлює вона сама — формат там може бути заборонений
+    format(`каталог, вигляд колонки «${name}»`, () => columnLook_(books, col));
+    format(`каталог, жирний заголовок «${name}»`, () => books.getRange(1, col).setFontWeight('bold'));
     return col;
   };
 
@@ -305,8 +339,13 @@ function setupCatalog() {
       .setAllowInvalid(STRICT_FIELDS.indexOf(name) < 0)
       .build()));
   });
+  const publishIsNew = head.indexOf(PUBLISH_COL) < 0;
   const publishCol = column(PUBLISH_COL);
   format(`каталог, галочки в колонці «${PUBLISH_COL}»`, () => publishCheckboxes_(books, publishCol));
+  if (publishIsNew) {
+    format(`каталог, відмітки в новій колонці «${PUBLISH_COL}»`,
+      () => publishFillAll_(books, publishCol, head.indexOf('Назва') + 1));
+  }
   column('Видавництво');
   column('Акційна ціна');
   // ISBN — як текст: інакше таблиця вважає його числом і з'їдає нуль на початку ISBN-10
@@ -531,7 +570,7 @@ function testTelegram() {
 
 function readCatalog_() {
   const values = catalogSheet_(catalog_()).getDataRange().getValues();
-  const head = values[0].map(h => String(h).trim());
+  const head = catalogHead_(values[0]);
   const col = name => head.indexOf(name);
   const c = {
     id: col('№'), author: col('Автор'), title: col('Назва'), year: col('Рік'),
@@ -546,7 +585,7 @@ function readCatalog_() {
   const optional = {
     category: col('Категорія'), // одна категорія будь-якого рівня з аркуша «Категорії»
     condition: col('Стан'),
-    binding: col('Обкладинка'),
+    binding: col(BINDING_COL),
     language: col('Мова'),
     publisher: col('Видавництво'),
     // ISBN з книги (10 чи 13 цифр, дефіси не заважають) — потрібен Google Покупкам; у старих книг його може не бути
@@ -720,7 +759,7 @@ function json_(obj) {
 const FORM_FIELDS = {
   id: '№', title: 'Назва', author: 'Автор', year: 'Рік', pages: 'Сторінки',
   price: 'Ціна', salePrice: 'Акційна ціна', stock: 'К-сть',
-  category: 'Категорія', condition: 'Стан', binding: 'Обкладинка', language: 'Мова',
+  category: 'Категорія', condition: 'Стан', binding: BINDING_COL, language: 'Мова',
   publisher: 'Видавництво', isbn: 'ISBN', description: 'Опис', preorder: 'Передзамовлення',
   publish: PUBLISH_COL, // 'true' / 'false'; у таблиці — галочка
 };
@@ -743,7 +782,7 @@ function showBookForm() {
 function formSheet_() {
   const sheet = catalogSheet_(catalog_());
   const values = sheet.getDataRange().getValues();
-  const head = values[0].map(h => String(h).trim());
+  const head = catalogHead_(values[0]);
   return { sheet, values, head, col: name => head.indexOf(name) };
 }
 
@@ -783,7 +822,7 @@ function formInit() {
     nextId: formNextId_(values, id),
     categories: readCategories_(),
     conditions: FIELD_OPTIONS['Стан'],
-    bindings: merge('Обкладинка'),
+    bindings: merge(BINDING_COL),
     languages: merge('Мова'),
     authors: formDistinct_(values, author),
     publishers: formDistinct_(values, col('Видавництво')),
@@ -876,9 +915,12 @@ function formSaveBook(input, isNew) {
       if (c < 0) {
         if (!v) return;
         c = formAddColumn_(sheet, head, name);
-        // нова колонка «Публікація» — порожні галочки в усіх рядках
+        // нова колонка «Публікація» — галочки в усіх рядках, відмічені в усіх книг; цій книзі — як у формі (нижче)
         if (key === 'publish') {
           try { publishCheckboxes_(sheet, c + 1); } catch (err) { console.warn(err.message); }
+          try { publishFillAll_(sheet, c + 1, col('Назва') + 1); } catch (err) { console.warn(err.message); }
+          // щойно відмічене — у old, щоб рядок цієї книги порівнювався з тим, що тепер у таблиці
+          old[c] = sheet.getRange(row, c + 1).getValue();
         }
       }
       if (String(old[c] == null ? '' : old[c]).trim() === v) return;
@@ -906,7 +948,10 @@ function formAddColumn_(sheet, head, name) {
   head.push(name);
   const col = head.length;
   if (col > sheet.getMaxColumns()) sheet.insertColumnsAfter(sheet.getMaxColumns(), col - sheet.getMaxColumns());
-  sheet.getRange(1, col).setValue(name).setFontWeight('bold');
+  sheet.getRange(1, col).setValue(name);
+  // у таблиці Google з типами колонок формат шапки може бути заборонений — тоді лишаємо як є
+  try { columnLook_(sheet, col); } catch (err) { console.warn(err.message); }
+  try { sheet.getRange(1, col).setFontWeight('bold'); } catch (err) { console.warn(err.message); }
   return col - 1;
 }
 

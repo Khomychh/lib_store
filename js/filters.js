@@ -9,7 +9,7 @@ const FACETS = [
   // акційна — та, у якої є звичайна ціна, вища за ціну продажу (oldPrice передає скрипт, див. discount у js/catalog.js)
   { key: 'sale', title: 'Акція', order: ['Зі знижкою'], value: b => b.oldPrice > b.price ? 'Зі знижкою' : '' },
   { key: 'condition', title: 'Стан', order: ['Нова', 'Вживана'] },
-  { key: 'binding', title: 'Обкладинка', order: ['Тверда', 'Суперобкладинка', 'М’яка', 'Інтегральна'] },
+  { key: 'binding', title: 'Палітурка', order: ['Тверда', 'Суперобкладинка', 'М’яка', 'Інтегральна'] },
   { key: 'language', title: 'Мова', order: ['Українська', 'Англійська', 'Російська'] },
 ];
 const picked = Object.fromEntries(FACETS.map(f => [f.key, new Set()]));

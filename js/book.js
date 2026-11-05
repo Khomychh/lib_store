@@ -69,7 +69,7 @@ function openBook(b) {
 // далі — бібліографія. Той самий список — у bookArticle (scripts/build.mjs)
 const bookFacts = b => [
   ['Мова', b.language], ['Стан', b.condition], ['Рік видання', b.year], ['Сторінок', b.pages],
-  ['Видавництво', b.publisher], ['Обкладинка', b.binding], ['ISBN', b.isbn],
+  ['Видавництво', b.publisher], ['Палітурка', b.binding], ['ISBN', b.isbn],
 ].filter(([, v]) => v);
 
 // «Є питання про цю книгу?» під описом (а без опису — замість нього): ті самі Telegram і пошта, що в кнопці чату.
