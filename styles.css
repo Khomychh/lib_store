@@ -187,20 +187,58 @@ header { padding: 56px 16px 32px; }
   border-radius: 999px; background: var(--accent); color: var(--accent-ink);
   font-size: 11.5px; font-weight: 600;
 }
+/* Ліворуч категорії (один рівень дерева), праворуч короткі групи кнопками; кожна частина гортається сама.
+   --fm-max — висота до низу вікна, її рахує openFilters */
 .filter-menu {
-  min-width: 250px; max-width: min(340px, calc(100vw - 32px)); padding: 8px 6px;
-  /* дерево категорій може бути довгим — меню гортається саме, сторінка під ним стоїть */
-  max-height: min(70vh, 560px); overflow-y: auto; overscroll-behavior: contain;
-  scrollbar-width: thin;
+  width: 300px; max-width: calc(100vw - 32px); padding: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
 }
+.filter-menu.two { width: 620px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.fm-cats, .fm-facets {
+  max-height: calc(var(--fm-max, 560px) - 66px);
+  overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+}
+.fm-cats { padding: 8px 6px; }
+.fm-facets { padding: 8px 10px 10px; }
+.filter-menu.two .fm-facets { border-left: 1px solid var(--line); }
+.fm-foot { grid-column: 1 / -1; padding: 10px; border-top: 1px solid var(--line); background: var(--menu); }
+.fm-show { width: 100%; }
 .filter-menu input[type="radio"] { width: 16px; height: 16px; }
-.filter-menu fieldset { border: 0; margin: 0; padding: 0; }
-.filter-menu fieldset + fieldset { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.filter-menu fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.fm-facets fieldset + fieldset { margin-top: 8px; }
 .filter-menu legend { padding: 6px 12px 4px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.fm-facets legend { padding: 6px 2px; }
 .filter-menu .check { padding: 8px 12px; border-radius: 10px; }
 .filter-menu .check:hover { background: var(--accent-soft); }
 .filter-menu .check .n { margin-left: auto; padding-left: 16px; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
-.filter-menu .check.empty { opacity: .45; }
+.filter-menu .check .more { width: 8px; flex: none; color: var(--muted); font-size: 17px; line-height: 1; }
+.filter-menu .check.head { font-weight: 600; }
+.filter-menu .check.sub { padding-left: 24px; }
+.filter-menu .empty { opacity: .45; }
+.cat-back {
+  display: block; width: 100%; text-align: left;
+  font: inherit; font-size: 13.5px; color: var(--muted);
+  background: none; border: 0; border-radius: 10px;
+  padding: 7px 12px; cursor: pointer;
+}
+.cat-back:hover { background: var(--accent-soft); color: var(--ink); }
+/* кнопки-перемикачі: сам перемикач прихований, але лишається для клавіатури */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line); border-radius: 999px;
+  font-size: 13.5px; cursor: pointer;
+  transition: border-color .15s, background .15s;
+}
+.chip input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.chip .n { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }
+.chip:has(input:checked) { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chip:has(input:checked) .n { color: inherit; opacity: .75; }
+.chip:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* під пошуком: скільки книг знайдено і які фільтри ввімкнені — кожен знімається кліком */
 .summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 22px 0 24px; }
@@ -214,6 +252,7 @@ header { padding: 56px 16px 32px; }
 .picked span { font-size: 16px; line-height: 1; opacity: .7; }
 .picked:hover span { opacity: 1; }
 @keyframes pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } }
+@keyframes sheet { from { opacity: 0; transform: translateY(24px); } }
 .sort-menu li {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px;
@@ -562,6 +601,28 @@ header { padding: 56px 16px 32px; }
   /* меню відкриваються на всю ширину панелі, а не від своєї кнопки — інакше вилазять за край екрана */
   .sort, .filter { position: static; }
   .sort-menu, .filter-menu { left: 0; right: 0; min-width: 0; max-width: none; }
+  /* фільтри — панель знизу екрана поверх затемненої сторінки: спершу короткі групи, під ними категорії,
+     кнопка «Показати…» завжди внизу. Скло панелі пошуку (backdrop-filter) робило б її рамкою для fixed,
+     тому, поки панель відкрита, скло вимикаємо і піднімаємо панель пошуку над кошиком */
+  .toolbar:has(.filter-menu:not([hidden])) {
+    z-index: 40; -webkit-backdrop-filter: none; backdrop-filter: none; background: var(--glass-strong);
+  }
+  /* затемнення — шар панелі пошуку: дотик по ньому закриває меню і не натискає книгу під ним */
+  .toolbar:has(.filter-menu:not([hidden]))::before {
+    content: ''; position: fixed; inset: 0; background: var(--backdrop);
+  }
+  .filter-menu, .filter-menu.two {
+    position: fixed; top: auto; bottom: 0; width: auto;
+    display: flex; flex-direction: column;
+    max-height: 85dvh; overflow-y: auto; overscroll-behavior: contain;
+    border-radius: 22px 22px 0 0; border-bottom: 0;
+    box-shadow: var(--shadow-lg);
+    transform-origin: bottom; animation: sheet .2s ease-out;
+  }
+  .fm-cats, .fm-facets { max-height: none; overflow: visible; }
+  .fm-facets { order: -1; padding: 12px 14px 14px; border-bottom: 1px solid var(--line); }
+  .filter-menu.two .fm-facets { border-left: 0; }
+  .fm-foot { position: sticky; bottom: 0; margin-top: auto; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
   .list.grid { row-gap: 16px; }
 }
 /* кругла, на всю висоту панелі, як сусідні кнопки (ті розтягуються своїми обгортками) */

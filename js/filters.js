@@ -78,61 +78,87 @@ function renderFilters() {
   updateFilterMenu();
 }
 
-// Меню будуємо при відкритті, а після кожної зміни лише оновлюємо галочки й числа — фокус не стрибає
+// Меню будуємо при відкритті, а після кожної зміни лише оновлюємо галочки й числа — фокус не стрибає.
+// Дві частини: категорії (довгі, по одному рівню дерева) і короткі групи — добірка, акція, стан,
+// палітурка, мова — кнопками-перемикачами, щоб їх було видно одразу, без гортання повз категорії
 function buildFilterMenu() {
   const menu = $('filterMenu');
   menu.textContent = '';
-  // категорія — одна, тож перемикачі; вкладені зсунуті вправо за рівнем
-  if (categoryRoots().length) {
-    const group = el('fieldset', 'cat-tree');
-    group.append(el('legend', null, 'Категорія'));
-    for (const row of categoryRows()) {
-      const label = el('label', 'check');
-      label.style.paddingLeft = 12 + row.depth * 18 + 'px';
-      const radio = el('input');
-      radio.type = 'radio';
-      radio.name = 'cat';
-      radio.value = row.name;
-      radio.onchange = () => selectCat(row.name);
-      label.append(radio, row.label, el('span', 'n'));
-      group.append(label);
-    }
-    menu.append(group);
-  }
+  const hasCats = categoryRoots().length > 0;
+  if (hasCats) menu.append(categoryGroup());
+
+  const facets = el('div', 'fm-facets');
   // добірка — одна; вибір відкриває її сторінку (адреса /dobirka/…) з її заголовком
   if (collections.length) {
-    const group = el('fieldset');
-    group.append(el('legend', null, 'Добірка'));
-    for (const c of [{ slug: '', name: 'Усі книги' }, ...collections]) {
-      const label = el('label', 'check');
-      const radio = el('input');
-      radio.type = 'radio';
-      radio.name = 'coll';
-      radio.value = c.slug;
-      radio.onchange = () => selectColl(c.slug);
-      label.append(radio, c.name, el('span', 'n'));
-      group.append(label);
-    }
-    menu.append(group);
+    facets.append(chipGroup('Добірка', [{ slug: '', name: 'Усі книги' }, ...collections].map(c =>
+      chip('radio', c.name, input => { input.name = 'coll'; input.value = c.slug; input.onchange = () => selectColl(c.slug); }))));
   }
   for (const f of FACETS) {
     const values = facetValues(f);
     if (!values.length) continue;
-    const group = el('fieldset');
-    group.append(el('legend', null, f.title));
-    for (const v of values) {
-      const label = el('label', 'check');
-      const box = el('input');
-      box.type = 'checkbox';
-      box.dataset.key = f.key;
-      box.dataset.value = v;
-      box.onchange = () => toggleFilter(f.key, v);
-      label.append(box, v, el('span', 'n'));
-      group.append(label);
-    }
-    menu.append(group);
+    facets.append(chipGroup(f.title, values.map(v => chip('checkbox', v, input => {
+      input.dataset.key = f.key;
+      input.dataset.value = v;
+      input.onchange = () => toggleFilter(f.key, v);
+    }))));
   }
+  if (facets.childElementCount) menu.append(facets);
+  menu.classList.toggle('two', hasCats && facets.childElementCount > 0);
+
+  // результат видно одразу під меню, але на телефоні меню його закриває — кнопка каже, скільки буде, і закриває меню
+  const foot = el('div', 'fm-foot');
+  const show = el('button', 'btn fm-show');
+  show.type = 'button';
+  show.onclick = () => { closeFilters(); $('filterBtn').focus(); };
+  foot.append(show);
+  menu.append(foot);
   updateFilterMenu();
+}
+
+function chipGroup(title, chips) {
+  const group = el('fieldset');
+  group.append(el('legend', null, title));
+  const box = el('div', 'chips');
+  box.append(...chips);
+  group.append(box);
+  return group;
+}
+
+// кнопка-перемикач: усередині справжній перемикач чи галочка (для клавіатури й читалок екрана), видно лише підпис
+function chip(type, text, setup) {
+  const label = el('label', 'chip');
+  const input = el('input');
+  input.type = type;
+  setup(input);
+  label.append(input, text, el('span', 'n'));
+  return label;
+}
+
+// категорія — одна, тож перемикачі. Показуємо один рівень дерева: категорія з підкатегоріями (позначена ›)
+// при виборі відкривається, а «‹ …» повертає на рівень вище
+function categoryGroup() {
+  const group = el('fieldset', 'cat-tree fm-cats');
+  group.append(el('legend', null, 'Категорія'));
+  const { up, rows } = categoryLevel();
+  if (up !== undefined) {
+    const back = el('button', 'cat-back', '‹ ' + (up || 'Усі категорії'));
+    back.type = 'button';
+    back.onclick = () => selectCat(up);
+    group.append(back);
+  }
+  for (const row of rows) {
+    const label = el('label', 'check' + (row.head ? ' head' : up !== undefined ? ' sub' : ''));
+    const radio = el('input');
+    radio.type = 'radio';
+    radio.name = 'cat';
+    radio.value = row.name;
+    radio.onchange = () => selectCat(row.name);
+    label.append(radio, row.label, el('span', 'n'), el('span', 'more', row.more ? '›' : ''));
+    // повний шлях — у підказці, щоб було видно, звідки ця категорія
+    if (row.name && row.name !== NONE) label.title = [...cats.get(row.name).lineage].reverse().join(' › ');
+    group.append(label);
+  }
+  return group;
 }
 
 // числа — скільки книг буде, якщо відмітити значення, з урахуванням категорії, пошуку та іншої групи
@@ -161,6 +187,10 @@ function updateFilterMenu() {
     radio.parentElement.querySelector('.n').textContent = n;
     radio.parentElement.classList.toggle('empty', !n && !radio.checked);
   }
+  const show = menu.querySelector('.fm-show');
+  if (show) show.textContent = filtered.length
+    ? `Показати ${filtered.length} ${plural(filtered.length, 'книгу', 'книги', 'книг')}`
+    : 'Нічого не знайдено';
   const base = searched.filter(b => inCategory(b) && inCollection(b));
   for (const box of menu.querySelectorAll('input[type="checkbox"]')) {
     const { key, value } = box.dataset;
@@ -176,9 +206,15 @@ function openFilters() {
   menu.hidden = false;
   $('filterBtn').setAttribute('aria-expanded', 'true');
   buildFilterMenu();
-  // не далі за нижній край вікна і не під смугу кошика: далі меню гортається саме
-  const bar = $('cartbar').classList.contains('show') ? innerHeight - $('cartbar').getBoundingClientRect().top : 0;
-  menu.style.maxHeight = Math.max(240, innerHeight - bar - menu.getBoundingClientRect().top - 16) + 'px';
+  // на телефоні меню — панель знизу екрана, висоту їй задають стилі
+  if (!matchMedia('(max-width: 600px)').matches) {
+    // панель пошуку прилипає до верху вікна: підкручуємо сторінку до неї, інакше під шапкою меню лишається кілька рядків
+    const gap = $('filter').closest('.toolbar').getBoundingClientRect().top - 10;
+    if (gap > 1) scrollBy({ top: gap, behavior: 'instant' });
+    // не далі за нижній край вікна і не під смугу кошика: далі частини меню гортаються самі
+    const bar = $('cartbar').classList.contains('show') ? innerHeight - $('cartbar').getBoundingClientRect().top : 0;
+    menu.style.setProperty('--fm-max', Math.max(300, innerHeight - bar - menu.getBoundingClientRect().top - 16) + 'px');
+  }
   menu.querySelector('input')?.focus();
 }
 function closeFilters() {
@@ -250,18 +286,18 @@ function readHashCategory() {
 
 const categoryRoots = () => [...cats.values()].filter(n => !n.parent && hasBooks(n));
 
-// Рядки дерева для меню фільтрів: верхній рівень видно завжди, а вкладені — лише вздовж гілки
-// вибраної категорії (її предки, сусіди на кожному рівні та її власні підкатегорії)
-function categoryRows() {
-  const open = new Set(cats.get(cat)?.lineage || []);
-  const rows = [{ name: '', label: 'Усі книги', depth: 0 }];
-  const walk = (list, depth) => {
-    for (const n of list.filter(hasBooks)) {
-      rows.push({ name: n.name, label: n.name, depth });
-      if (open.has(n.name)) walk(n.children, depth + 1);
-    }
-  };
-  walk(categoryRoots(), 0);
-  if (uncategorized) rows.push({ name: NONE, label: 'Без категорії', depth: 0 });
-  return rows;
+// Рівень дерева для меню фільтрів. Без вибору — верхній рівень. Вибрана категорія з підкатегоріями
+// відкривається: вона сама першим рядком («усе в ній»), під нею — її підкатегорії. Вибрана без підкатегорій —
+// видно її сусідів. up — куди веде «‹ назад» ('' — до всіх книг); немає up — ми на верхньому рівні
+function categoryLevel() {
+  const kids = n => n.children.filter(hasBooks);
+  const row = n => ({ name: n.name, label: n.name, more: kids(n).length > 0 });
+  const node = cats.get(cat);
+  const open = !node ? null : kids(node).length ? node : cats.get(node.parent) || null;
+  if (!open) {
+    const rows = [{ name: '', label: 'Усі книги' }, ...categoryRoots().map(row)];
+    if (uncategorized) rows.push({ name: NONE, label: 'Без категорії' });
+    return { rows };
+  }
+  return { up: open.parent, rows: [{ name: open.name, label: open.name, head: true }, ...kids(open).map(row)] };
 }

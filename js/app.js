@@ -60,7 +60,8 @@ sortMenu.addEventListener('keydown', e => {
 });
 document.addEventListener('click', e => {
   if (!sortMenu.hidden && !e.target.closest('.sort')) closeSort();
-  if (!$('filterMenu').hidden && !e.target.closest('.filter')) closeFilters();
+  // шлях події, а не e.target.closest: «‹ назад» у меню перебудовує його, і натиснута кнопка вже поза сторінкою
+  if (!$('filterMenu').hidden && !e.composedPath().includes($('filter'))) closeFilters();
   if (!$('chatMenu').hidden && !e.target.closest('.chat')) closeChat();
 });
 
