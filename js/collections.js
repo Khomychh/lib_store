@@ -7,6 +7,9 @@ let collBySlug = new Map();
 let coll = ''; // адреса вибраної добірки; '' — без добірки
 
 const SHELF_MAX = 12; // книг на полиці головної; решта — на сторінці добірки
+// На головній — полиця лише першої добірки з аркуша; решта — у меню «Фільтри» і за своїми адресами.
+// Те саме число — SHELVES у scripts/build.mjs
+const SHELVES = 1;
 const COLL_PATH = /^\/dobirka\/([^/]+)\/?$/;
 const collPath = slug => `/dobirka/${encodeURIComponent(slug)}/`;
 const collFromPath = () => {
@@ -85,7 +88,7 @@ function renderShelves() {
   if (!show) { box.textContent = ''; shelvesFor = null; return; }
   if (shelvesFor === collections) return;
   shelvesFor = collections;
-  box.replaceChildren(...collections.map(shelfSection));
+  box.replaceChildren(...collections.slice(0, SHELVES).map(shelfSection));
   for (const row of box.querySelectorAll('.shelf-row')) row.dispatchEvent(new Event('scroll'));
 }
 

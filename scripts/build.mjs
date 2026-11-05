@@ -380,6 +380,7 @@ const collections = (catalog.collections || []).filter(c => {
 }).map(c => ({ ...c, list: (c.books || []).map(id => catalogById.get(id)).filter(Boolean) }))
   .filter(c => c.list.length);
 const SHELF_MAX = 12; // як у js/collections.js
+const SHELVES = 1; // полиць на головній — перші добірки з аркуша; як у js/collections.js
 const collUrl = c => `${SITE}/dobirka/${c.slug}/`;
 const descParas = c => paragraphs(c.description);
 function shelfHtml(c) {
@@ -409,7 +410,7 @@ for (let n = 1; n <= pageCount; n++) {
   }
   if (n === 1 && collections.length) {
     html = html.replace('<div class="shelves" id="shelves" hidden></div>',
-      `<div class="shelves" id="shelves">${collections.map(shelfHtml).join('\n')}</div>`);
+      `<div class="shelves" id="shelves">${collections.slice(0, SHELVES).map(shelfHtml).join('\n')}</div>`);
     if (!html.includes('<div class="shelves" id="shelves">')) throw new Error('Не знайшов у index.html місце для полиць добірок (id="shelves")');
   }
   const url = SITE + pagePath(n);
