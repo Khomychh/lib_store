@@ -284,14 +284,12 @@ function bookRow(b, grid = view === 'grid') {
   li.dataset.id = b.id;
 
   const info = el('div', 'info');
-  // під назвою: автор, потім дрібно — рік і сторінки. Мову не показуємо: її видно з назви (є в картці книги).
-  // На вітрині це два окремі рядки, у списку — один (крапку між ними ставить CSS: .author + .meta::before)
+  // під назвою: лише автор. Рік, сторінки й мову не показуємо — вони в картці книги.
+  // У списку поряд з автором — стан уживаної (крапку між ними ставить CSS: .author + .meta::before)
   const sub = el('div', 'byline');
   if (b.author) sub.append(el('span', 'author', b.author));
   // стан уживаної книги: у списку — у підписі, на вітрині — позначкою на обкладинці
-  const cond = !grid && isUsed(b) && 'стан: ' + b.condition.toLowerCase();
-  const rest = [b.year && b.year + ' р.', b.pages && b.pages + ' с.', cond].filter(Boolean).join(' · ');
-  if (rest) sub.append(el('span', 'meta', rest));
+  if (!grid && isUsed(b)) sub.append(el('span', 'meta', 'стан: ' + b.condition.toLowerCase()));
   // позначка на обкладинці схована від читачів екрана разом з обкладинкою — дублюємо її для них
   if (grid && isUsed(b)) sub.append(el('span', 'sr-only', `, стан: ${b.condition}`));
   const title = el('a', 'title', b.title);

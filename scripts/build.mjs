@@ -331,10 +331,8 @@ function staticRow(b) {
   } else {
     cover = clothCover(b, 'cover blank', badges);
   }
-  // як у bookRow (js/catalog.js): автор, потім рік і сторінки
-  const rest = [b.year && b.year + ' р.', b.pages && b.pages + ' с.'].filter(Boolean).join(' · ');
-  const meta = rest ? `<span class="meta">${esc(rest)}</span>` : '';
-  const by = (b.author ? `<span class="author">${esc(b.author)}</span>` : '') + meta +
+  // як у bookRow (js/catalog.js): лише автор, без року й сторінок
+  const by = (b.author ? `<span class="author">${esc(b.author)}</span>` : '') +
     (isUsed(b) ? `<span class="sr-only">, стан: ${esc(b.condition)}</span>` : '');
   return `<li class="row" data-id="${esc(b.id)}">${cover}` +
     `<div class="info"><a class="title" href="/book/${encodeURIComponent(b.id)}/">${esc(b.title)}</a><div class="byline">${by}</div></div>` +

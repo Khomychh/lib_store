@@ -84,8 +84,9 @@ body {
 button { font: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Фото за склом: нерухоме, сторінка пливе над ним */
-.photo {
+/* Фото за склом: нерухоме, сторінка пливе над ним.
+   Лише body > .photo: клас .photo носять і обкладинки (.cover.photo) — інакше вони теж темніють */
+body > .photo {
   position: fixed; inset: 0; z-index: -1;
   background:
     radial-gradient(ellipse 110% 90% at 50% 35%, transparent 45%, rgba(0, 0, 0, .45)),
@@ -93,7 +94,7 @@ button { font: inherit; }
   filter: var(--photo-filter);
 }
 @media (max-width: 700px) {
-  .photo { background-image: radial-gradient(ellipse 110% 90% at 50% 35%, transparent 45%, rgba(0, 0, 0, .45)), url(pages-960.jpg); }
+  body > .photo { background-image: radial-gradient(ellipse 110% 90% at 50% 35%, transparent 45%, rgba(0, 0, 0, .45)), url(pages-960.jpg); }
 }
 
 /* Скло */
@@ -309,7 +310,7 @@ header { padding: 56px 16px 32px; }
 .row .title { font: 600 16.5px/1.35 Literata, Georgia, serif; }
 .byline { color: var(--muted); font-size: 13px; margin-top: 3px; }
 .byline .author { color: var(--accent); font-weight: 500; }
-/* у списку автор і решта — в одному рядку через крапку; на вітрині — двома рядками (нижче, .grid .byline) */
+/* у списку автор і стан уживаної — в одному рядку через крапку; на вітрині стан — позначкою на обкладинці */
 .byline .author + .meta::before { content: " · "; }
 .meta { color: var(--muted); font-size: 13px; }
 .pricebox { text-align: right; }
@@ -481,10 +482,8 @@ header { padding: 56px 16px 32px; }
 .grid .row .info { grid-column: 1 / -1; margin-bottom: 10px; }
 .grid .row .title { font-size: 15px; }
 .grid .byline { font-size: 12.5px; }
-/* вітрина: автор — окремим рядком, під ним дрібніше рік і сторінки; що не влазить — «…» */
-.grid .byline > .author, .grid .byline > .meta { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.grid .byline .author + .meta::before { content: none; }
-.grid .byline > .meta { margin-top: 2px; font-size: 12px; }
+/* вітрина: під назвою лише автор, одним рядком; що не влазить — «…» */
+.grid .byline > .author { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid .pricebox { display: block; text-align: left; align-self: end; }
 .grid .ctrl { align-self: end; }
 /* картка знає свою ширину: на вузькій (телефон, полиця добірки) ціна й «− 1 +» поруч не вміщаються */
@@ -498,7 +497,7 @@ header { padding: 56px 16px 32px; }
 }
 
 /* Телефон: одна книга в ряду. Обкладинка на всю ширину була б ~500px заввишки — на екрані вміщалася б одна книга,
-   тому картка горизонтальна: велика обкладинка ліворуч, праворуч назва, автор, рік, а внизу ціна й кошик.
+   тому картка горизонтальна: велика обкладинка ліворуч, праворуч назва й автор, а внизу ціна й кошик.
    Лише вітрина каталогу (#list): полиці добірок на телефоні так само гортаються вбік */
 @media (max-width: 600px) {
   #list.grid { row-gap: 14px; }
@@ -516,11 +515,9 @@ header { padding: 56px 16px 32px; }
   }
   #list.grid .row .info { grid-column: 2 / -1; grid-row: 1; margin: 4px 0 10px; }
   #list.grid .row .title { font-size: 17px; line-height: 1.3; -webkit-line-clamp: 4; }
-  /* автор і рік — до двох рядків, а не обрізані на першому */
-  /* на телефоні в картці є місце: автор і рядок з роком переносяться, а не обрізаються */
+  /* на телефоні в картці є місце: довгий автор переноситься, а не обрізається */
   #list.grid .byline { margin-top: 6px; }
-  #list.grid .byline > .author, #list.grid .byline > .meta { white-space: normal; }
-  #list.grid .byline > .meta { margin-top: 3px; font-size: 12.5px; }
+  #list.grid .byline > .author { white-space: normal; }
   #list.grid .pricebox { grid-column: 2; grid-row: 3; align-self: end; }
   #list.grid .price { font-size: 19px; }
   #list.grid .ctrl { grid-column: 3; grid-row: 3; align-self: end; }
