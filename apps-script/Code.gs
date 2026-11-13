@@ -16,7 +16,8 @@
 //   PHOTOS_FOLDER — папка з фото на Google Диску: ID (частина посилання після /folders/) або все посилання;
 //                   немає — сайт без фото. Файл називається номером книги з колонки «№»:
 //                   15.jpg — обкладинка, 15-2.jpg, 15-3.jpg — ще фото;
-//   TELEGRAM_TOKEN, TELEGRAM_CHAT_ID — сповіщення про замовлення, див. нижче.
+//   TELEGRAM_TOKEN, TELEGRAM_CHAT_ID — сповіщення про замовлення, див. нижче;
+//   DOC_DOSTAVKA, DOC_POVERNENNIA, DOC_KONTAKTY — Google Документи з текстами сторінок сайту, див. «Сторінки сайту» нижче.
 // Аркуш з деревом категорій у таблиці з книгами: «Категорія» і «Батьківська» (порожньо — верхній рівень).
 // Створюється функцією setupCatalog; якщо аркуша немає — сайт працює без категорій
 const CATEGORIES_SHEET = 'Категорії';
@@ -68,7 +69,9 @@ const STATUSES = [
   ['Скасовано', '#eeeeee'],
 ];
 
-function doGet() {
+function doGet(e) {
+  // ?pages=1 — тексти сторінок сайту (бере лише збирач сайту, раз на годину); без нього — каталог
+  if (e && e.parameter && e.parameter.pages) return json_({ ok: true, pages: readPages_() });
   const photos = photos_();
   const books = readCatalog_()
     // з К-сть 0 лишаються лише книги, які можна передзамовити
@@ -761,6 +764,92 @@ function text_(v) {
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ───────────────────────── Сторінки сайту ─────────────────────────
+// Доставка, повернення й контакти пишуться в Google Документах, а не в коді. ID документа (або все посилання) —
+// у Властивостях скрипта. Немає властивості чи документ не відкривається — сайт бере текст з папки pages/ репозиторію.
+// Звідси йде лише простий зміст: заголовки, абзаци, списки, жирний/курсив і посилання.
+// HTML з нього робить збирач сайту (scripts/build.mjs), тож оформлення завжди однакове, хоч би що було в документі
+const PAGE_DOCS = {
+  'dostavka-i-oplata': 'DOC_DOSTAVKA',
+  'povernennia': 'DOC_POVERNENNIA',
+  'kontakty': 'DOC_KONTAKTY',
+};
+
+// { адреса сторінки: { name, blocks } або { error } }
+function readPages_() {
+  const pages = {};
+  Object.keys(PAGE_DOCS).forEach(slug => {
+    const id = settingId_(PAGE_DOCS[slug]);
+    if (!id) return;
+    try {
+      const doc = DocumentApp.openById(id);
+      pages[slug] = { name: doc.getName(), blocks: docBlocks_(doc.getBody()) };
+    } catch (err) {
+      pages[slug] = { error: String(err.message || err) };
+    }
+  });
+  return pages;
+}
+
+// Блоки документа: { type: 'title'|'h1'|'h2'|'h3'|'p'|'li', ordered, level, runs: [{ text, bold, italic, link }] }
+// Таблиці, малюнки й інше пропускаємо
+function docBlocks_(body) {
+  const heading = {
+    TITLE: 'title', HEADING1: 'h1', HEADING2: 'h2', HEADING3: 'h3', HEADING4: 'h3', HEADING5: 'h3', HEADING6: 'h3',
+  };
+  // нумерований список — з цифрами чи літерами; решта (крапки, квадратики, невідомий значок) — звичайний
+  const numbered = ['NUMBER', 'LATIN_UPPER', 'LATIN_LOWER', 'ROMAN_UPPER', 'ROMAN_LOWER'];
+  const blocks = [];
+  for (let i = 0; i < body.getNumChildren(); i++) {
+    const el = body.getChild(i);
+    const kind = el.getType();
+    if (kind === DocumentApp.ElementType.PARAGRAPH) {
+      const p = el.asParagraph();
+      blocks.push({ type: heading[String(p.getHeading())] || 'p', runs: docRuns_(p) });
+    } else if (kind === DocumentApp.ElementType.LIST_ITEM) {
+      const li = el.asListItem();
+      blocks.push({
+        type: 'li', ordered: numbered.indexOf(String(li.getGlyphType())) >= 0,
+        level: li.getNestingLevel(), list: li.getListId(), runs: docRuns_(li),
+      });
+    }
+  }
+  return blocks;
+}
+
+// Шматки тексту абзацу з однаковим оформленням
+function docRuns_(par) {
+  const runs = [];
+  for (let i = 0; i < par.getNumChildren(); i++) {
+    const child = par.getChild(i);
+    if (child.getType() !== DocumentApp.ElementType.TEXT) continue;
+    const t = child.asText();
+    const text = t.getText();
+    const starts = t.getTextAttributeIndices();
+    starts.forEach((start, k) => {
+      const end = k + 1 < starts.length ? starts[k + 1] : text.length;
+      if (end <= start) return;
+      runs.push({
+        text: text.slice(start, end),
+        bold: !!t.isBold(start), italic: !!t.isItalic(start), link: t.getLinkUrl(start) || '',
+      });
+    });
+  }
+  return runs;
+}
+
+// Перевірка з редактора: виберіть testPages → Виконати, у журналі видно, що прочитано з кожного документа
+function testPages() {
+  const pages = readPages_();
+  Object.keys(PAGE_DOCS).forEach(slug => {
+    const p = pages[slug];
+    if (!p) Logger.log(`${slug}: властивість ${PAGE_DOCS[slug]} не задана — сайт бере текст з pages/${slug}.html`);
+    else if (p.error) Logger.log(`${slug}: не вдалося відкрити документ — ${p.error}`);
+    else Logger.log(`${slug}: «${p.name}», блоків: ${p.blocks.length}\n` +
+      p.blocks.map(b => `  ${b.type}: ${b.runs.map(r => r.text).join('')}`).join('\n'));
+  });
 }
 
 // ───────────────────────── Форма «Книга» ─────────────────────────

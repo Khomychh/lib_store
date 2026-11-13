@@ -8,7 +8,8 @@
 //  - на всі сторінки дописує адресу, прев'ю й розмітку магазину; робить sitemap.xml, robots.txt і 404.html;
 //  - для кожної добірки з аркуша «Добірки» робить сторінку /dobirka/<адреса>/ з її книгами, а на головній — полиці добірок;
 //  - робить products.xml — файл товарів для Google Merchant Center (лише книги з фото);
-//  - збирає текстові сторінки з папки pages/ (доставка й оплата, повернення, контакти) у /<назва файлу>/.
+//  - збирає текстові сторінки (доставка й оплата, повернення, контакти) у /<назва файлу в pages/>/ —
+//    з Google Документів через Apps Script, а якщо їх немає — з файлів pages/.
 //
 // Звідки бере дані (окремих налаштувань немає — міняйте там, де це й так видно):
 //  - домен сайту — файл CNAME;
@@ -42,7 +43,8 @@ const pick = (text, re, what) => {
 const versioned = html => html.replace(/(href|src)="((?:styles\.css)|(?:js\/[\w-]+\.js))"/g, (all, attr, file) =>
   `${attr}="${file}?v=${createHash('sha256').update(readFileSync(join(ROOT, file))).digest('hex').slice(0, 10)}"`);
 
-const template = versioned(read('index.html'));
+// let: контакти в чаті збирач замінює тими, що на сторінці «Контакти» (див. chatFromContacts)
+let template = versioned(read('index.html'));
 const SITE = 'https://' + read('CNAME').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
 // лише справжній тег на початку рядка, а не згадки в коментарях
 const BRAND = /^(\s*)<h1 class="brand">(.*?)<\/h1>/m;
@@ -227,6 +229,182 @@ function bookData(b) {
   };
   return JSON.parse(JSON.stringify(data)); // прибрати порожні (undefined) поля
 }
+
+// ---------- текстові сторінки (доставка, повернення, контакти) ----------
+// Текст — з Google Документа (див. «Сторінки сайту» в apps-script/Code.gs), а якщо документа немає
+// або він не відкрився — з файлу pages/<адреса>.html. Тож кожна сторінка має й файл: він визначає її адресу
+// і лишається запасним текстом. Назва сторінки — з <h1>, опис для Google — з першого абзацу.
+// <mark class="todo"> у файлі — ще не заповнене: сторінка все одно збирається, але з попередженням
+const BACK = '<a class="back glass" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Усі книги</a>';
+const plain = html => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+// Тексти з документів: { адреса: { name, blocks } | { error } }. Не вдалося — збираємо з файлів, сайт не падає
+async function fetchDocPages() {
+  try {
+    const res = await fetch(API_URL + '?pages=1', { redirect: 'follow' });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'скрипт повернув помилку');
+    // стара версія скрипта не знає ?pages=1 і віддає каталог — тоді документів просто ще немає
+    return data.pages || {};
+  } catch (err) {
+    console.warn(`::warning::Тексти сторінок з Google Документів не отримано (${err.message}) — беру з pages/`);
+    return {};
+  }
+}
+
+const SITE_HOST = new URL(SITE).hostname.replace(/^www\./, '');
+// Посилання з документа: лише http(s), пошта й телефон; на свій сайт — коротким шляхом (/kontakty/)
+function safeLink(url) {
+  url = String(url || '').trim();
+  if (!url || url.startsWith('#')) return ''; // закладки й заголовки всередині документа
+  if (/^(mailto|tel):/i.test(url)) return url;
+  let u;
+  try { u = new URL(/^[a-z][\w+.-]*:/i.test(url) ? url : 'https://' + url); } catch { return ''; }
+  if (!/^https?:$/.test(u.protocol)) return '';
+  if (u.hostname.replace(/^www\./, '') === SITE_HOST) return (u.pathname + u.search + u.hash) || '/';
+  return u.href;
+}
+const anchor = (href, inner) => href.startsWith('/') || /^(mailto|tel):/i.test(href)
+  ? `<a href="${esc(href)}">${inner}</a>`
+  : `<a href="${esc(href)}" target="_blank" rel="noopener">${inner}</a>`;
+// розрив рядка всередині абзацу (Shift+Enter) Документи передають як \v
+const escText = s => esc(s).replace(/\r\n|[\v\r\n\u2028]/g, '<br>');
+// Телефон, пошта, адреса сайту й @нік у Telegram, які в документі написані просто текстом, стають посиланнями
+const AUTO_LINK = /([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|(https?:\/\/[^\s<>"]*[^\s<>".,;:!?)»])|((?<![\w+])(?:\+\s?)?(?:38[\s-]?)?\(?0\d{2}\)?(?:[\s-]?\d){7}(?!\d))|((?<![\w@.])@[A-Za-z]\w{4,31}\b)/g;
+function autolink(text) {
+  let out = '', last = 0;
+  for (const m of text.matchAll(AUTO_LINK)) {
+    const [all, email, url, phone, tg] = m;
+    let href;
+    if (email) href = 'mailto:' + email;
+    else if (url) href = safeLink(url);
+    else if (phone) {
+      const d = phone.replace(/\D/g, '');
+      href = 'tel:+' + (d.startsWith('380') ? d : '38' + d);
+    } else if (tg) href = 'https://t.me/' + tg.slice(1);
+    if (!href) continue;
+    out += escText(text.slice(last, m.index)) + anchor(href, esc(all));
+    last = m.index + all.length;
+  }
+  return out + escText(text.slice(last));
+}
+// Абзац: сусідні шматки з тим самим посиланням — одне посилання; жирний і курсив — <b> і <i>
+function inline(runs) {
+  const groups = [];
+  for (const r of runs) {
+    const link = safeLink(r.link);
+    const g = groups.at(-1);
+    if (g && g.link === link) g.runs.push(r);
+    else groups.push({ link, runs: [r] });
+  }
+  return groups.map(g => {
+    const inner = g.runs.map(r => {
+      let h = g.link ? escText(r.text) : autolink(r.text);
+      if (r.italic) h = `<i>${h}</i>`;
+      if (r.bold) h = `<b>${h}</b>`;
+      return h;
+    }).join('').replace(/<\/b><b>|<\/i><i>/g, '');
+    return g.link ? anchor(g.link, inner) : inner;
+  }).join('').trim();
+}
+// Пункти списку підряд — один список (з вкладеними за рівнем)
+function listHtml(items) {
+  let html = '';
+  const stack = []; // відкриті списки: { tag, level }
+  for (const it of items) {
+    const level = it.level || 0, tag = it.ordered ? 'ol' : 'ul';
+    while (stack.length && stack.at(-1).level > level) html += `</li></${stack.pop().tag}>`;
+    if (stack.length && stack.at(-1).level === level) {
+      html += stack.at(-1).tag === tag ? '</li>\n' : `</li></${stack.pop().tag}>\n`;
+    }
+    if (!stack.length || stack.at(-1).level < level) {
+      html += `<${tag}>\n`;
+      stack.push({ tag, level });
+    }
+    html += `  <li>${inline(it.runs)}`;
+  }
+  while (stack.length) html += `</li>\n</${stack.pop().tag}>`;
+  return html;
+}
+// Документ → HTML сторінки. Перший заголовок («Назва» чи «Заголовок 1») — <h1>; немає — назва документа.
+// «Заголовок 2» — розділ (<h2>), «Заголовок 3» і нижче — <h3>; порожні абзаци пропускаємо
+function docHtml(doc) {
+  const out = [];
+  let h1 = '';
+  const blocks = doc.blocks.filter(b => b.runs.some(r => r.text.trim()));
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.type === 'li') {
+      const items = [b];
+      while (blocks[i + 1]?.type === 'li' && (blocks[i + 1].level || blocks[i + 1].list === b.list)) items.push(blocks[++i]);
+      out.push(listHtml(items));
+      continue;
+    }
+    const text = inline(b.runs);
+    if ((b.type === 'title' || b.type === 'h1') && !h1) h1 = text;
+    else if (b.type === 'title' || b.type === 'h1' || b.type === 'h2') out.push(`<h2>${text}</h2>`);
+    else if (b.type === 'h3') out.push(`<h3>${text}</h3>`);
+    else out.push(`<p>${text}</p>`);
+  }
+  if (!out.length) return '';
+  return `<h1>${h1 || esc(doc.name)}</h1>\n\n` + out.join('\n');
+}
+
+const docPages = await fetchDocPages();
+const textPages = readdirSync(join(ROOT, 'pages')).filter(f => f.endsWith('.html')).map(file => {
+  const slug = file.replace(/\.html$/, '');
+  const doc = docPages[slug];
+  let body = read(join('pages', file)).replace(/<!--[\s\S]*?-->/g, '').trim();
+  if (doc?.error) console.warn(`::warning::${slug}: документ не відкрився (${doc.error}) — беру pages/${file}`);
+  else if (doc?.blocks) {
+    const html = docHtml(doc);
+    if (html) { body = html; console.log(`${slug}: текст з документа «${doc.name}»`); }
+    else console.warn(`::warning::${slug}: документ «${doc.name}» порожній — беру pages/${file}`);
+  }
+  const h1 = plain(pick(body, /<h1>([\s\S]*?)<\/h1>/, `<h1> у pages/${file}`));
+  const first = body.match(/<p>([\s\S]*?)<\/p>/);
+  const todo = (body.match(/class="todo"/g) || []).length;
+  if (todo) console.warn(`::warning::pages/${file}: не заповнено місць — ${todo} (позначки <mark class="todo">)`);
+  return { slug, file, h1, body, description: clip(first ? plain(first[1]) : h1), todo };
+});
+
+// ---------- чат «Напишіть нам»: Telegram, пошта й години — зі сторінки «Контакти» ----------
+// В index.html чат має свої контакти (з ними сайт працює й без збирача), а збирач підставляє ті, що зараз
+// на сторінці «Контакти». Тож міняти їх треба в одному місці — у документі «Контакти» (чи pages/kontakty.html).
+// Береться перше посилання на Telegram (t.me) і перша пошта; години — абзац, що починається з «Відповідаємо».
+// Чого на сторінці немає — того пункту в чаті теж немає
+function chatFromContacts(html, body) {
+  const chat = html.match(/<div class="chat" id="chat">[\s\S]*?<\/div>\s*<button/);
+  if (!chat) {
+    console.warn('::warning::Чат у index.html не знайдено — контакти в ньому не оновлено');
+    return html;
+  }
+  const hrefs = [...body.matchAll(/<a href="([^"]+)"/g)].map(m => m[1].replace(/&amp;/g, '&'));
+  const tg = hrefs.find(h => /^https:\/\/t\.me\/\w/i.test(h));
+  const mail = hrefs.find(h => /^mailto:[^@\s]+@/i.test(h));
+  if (!tg && !mail) {
+    console.warn('::warning::На сторінці «Контакти» немає ні Telegram, ні пошти — у чаті лишаються контакти з index.html');
+    return html;
+  }
+  const hours = [...body.matchAll(/<p>([\s\S]*?)<\/p>/g)].map(m => plain(m[1])).find(t => /^Відповіда/i.test(t));
+  let block = chat[0];
+  // пункт меню: <a href="…"> … <small>підпис</small> … </a>
+  const item = (re, href, label) => {
+    block = href
+      ? block.replace(re, (all, open, mid, close) => `${open}${esc(href)}${mid}${esc(label)}${close}`)
+      : block.replace(new RegExp(String.raw`\s*` + re.source.replace(/\(|\)/g, '') + String.raw`[\s\S]*?</a>`), '');
+  };
+  item(/(<a href=")https:\/\/t\.me\/[^"]*("[\s\S]*?<small>)[^<]*(<\/small>)/, tg,
+    tg && '@' + tg.replace(/^https:\/\/t\.me\//i, '').replace(/[/?#].*/, ''));
+  item(/(<a href=")mailto:[^"]*("[\s\S]*?<small>)[^<]*(<\/small>)/, mail,
+    mail && decodeURIComponent(mail.replace(/^mailto:/i, '').replace(/\?.*/, '')));
+  block = block.replace(/(<p class="chat-title">[^<]*)<small>[^<]*<\/small>/, (all, title) =>
+    hours ? `${title}<small>${esc(hours.replace(/\.$/, ''))}</small>` : title);
+  return html.replace(chat[0], () => block);
+}
+const contactsPage = textPages.find(p => p.slug === 'kontakty');
+if (contactsPage) template = chatFromContacts(template, contactsPage.body);
 
 // ---------- збирання ----------
 const catalog = await fetchCatalog();
@@ -472,21 +650,7 @@ for (const c of collections) {
   }));
 }
 
-// ---------- текстові сторінки з папки pages/ (доставка, повернення, контакти) ----------
-// Файл pages/<адреса>.html — шматок HTML: назва сторінки з <h1>, опис для Google — з першого абзацу.
-// <mark class="todo"> — ще не заповнене: сторінка все одно збирається, але з попередженням
-const BACK = '<a class="back glass" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Усі книги</a>';
-const plain = html => html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
-  .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-const textPages = readdirSync(join(ROOT, 'pages')).filter(f => f.endsWith('.html')).map(file => {
-  const slug = file.replace(/\.html$/, '');
-  const body = read(join('pages', file)).replace(/<!--[\s\S]*?-->/g, '').trim();
-  const h1 = plain(pick(body, /<h1>([\s\S]*?)<\/h1>/, `<h1> у pages/${file}`));
-  const first = body.match(/<p>([\s\S]*?)<\/p>/);
-  const todo = (body.match(/class="todo"/g) || []).length;
-  if (todo) console.warn(`::warning::pages/${file}: не заповнено місць — ${todo} (позначки <mark class="todo">)`);
-  return { slug, file, h1, body, description: clip(first ? plain(first[1]) : h1), todo };
-});
+// ---------- текстові сторінки: запис (тексти зібрано вище, перед збиранням) ----------
 for (const p of textPages) {
   const url = `${SITE}/${p.slug}/`;
   let html = page({
