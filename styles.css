@@ -124,6 +124,8 @@ header { padding: 56px 16px 32px; }
   margin: 0;
   text-wrap: balance;
 }
+/* назва — посилання на головну: виглядає як заголовок, клік заново відкриває сайт */
+.brand a { color: inherit; text-decoration: none; border-radius: 6px; }
 @media (max-width: 600px) {
   header { padding: 28px 12px 20px; }
   .plaque { padding: 22px 20px; border-radius: 20px; }

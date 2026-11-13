@@ -47,8 +47,9 @@ const versioned = html => html.replace(/(href|src)="((?:styles\.css)|(?:js\/[\w-
 let template = versioned(read('index.html'));
 const SITE = 'https://' + read('CNAME').trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
 // лише справжній тег на початку рядка, а не згадки в коментарях
-const BRAND = /^(\s*)<h1 class="brand">(.*?)<\/h1>/m;
-const NAME = pick(template, /^\s*<h1 class="brand">(.*?)<\/h1>/m, '<h1 class="brand"> з назвою магазину в index.html');
+// назва в <h1> — посилання на головну: клік по ній заново відкриває сайт
+const BRAND = /^(\s*)<h1 class="brand"><a href="\/">(.*?)<\/a><\/h1>/m;
+const NAME = pick(template, /^\s*<h1 class="brand"><a href="\/">(.*?)<\/a><\/h1>/m, '<h1 class="brand"><a href="/"> з назвою магазину в index.html');
 const HOME_TITLE = pick(template, /<title>([\s\S]*?)<\/title>/, '<title> в index.html');
 const DESCRIPTION = pick(template, /<meta name="description" content="([^"]*)">/, 'meta description в index.html');
 const API_URL = pick(read('js/catalog.js'), /const API_URL = '([^']+)'/, 'API_URL в js/catalog.js');
