@@ -488,8 +488,7 @@ function doPost(e) {
 
     const total = lines.reduce((s, l) => s + l.sum, 0);
     const now = new Date();
-    const orderId = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMdd-HHmmss') +
-      '-' + Math.floor(Math.random() * 900 + 100);
+    const orderId = nextOrderId_(now);
 
     const pcs = lines.reduce((s, l) => s + l.qty, 0);
     const summary = lines
@@ -538,6 +537,20 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Номер замовлення: дата і порядковий номер за цей день — 261105-03. Лічильник у Властивостях скрипта
+// (ORDER_SEQ = «261105:3»), а не за рядками аркуша: видалений рядок не звільняє номер, номери не повторюються.
+// Викликати лише під блокуванням (doPost), інакше два замовлення можуть отримати один номер
+const ORDER_SEQ_PROP = 'ORDER_SEQ';
+
+function nextOrderId_(now) {
+  const day = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyMMdd');
+  const props = PropertiesService.getScriptProperties();
+  const [lastDay, lastN] = String(props.getProperty(ORDER_SEQ_PROP) || '').split(':');
+  const n = lastDay === day ? (Number(lastN) || 0) + 1 : 1;
+  props.setProperty(ORDER_SEQ_PROP, `${day}:${n}`);
+  return `${day}-${String(n).padStart(2, '0')}`;
 }
 
 // Помилка Telegram не повинна зламати замовлення — воно вже записане в таблицю
@@ -786,11 +799,24 @@ function formSheet_() {
   return { sheet, values, head, col: name => head.indexOf(name) };
 }
 
+// Найбільший № книги, який будь-коли видавався, — у Властивостях скрипта. Без нього після видалення
+// останньої книги її № дістався б новій, і старі замовлення, фото та посилання /book/<№>/ вказували б не на ту книгу
+const LAST_BOOK_ID_PROP = 'LAST_BOOK_ID';
+
+// Наступний вільний №: більший і за всі номери в каталозі, і за всі колись видані
 function formNextId_(values, idCol) {
+  const issued = Number(PropertiesService.getScriptProperties().getProperty(LAST_BOOK_ID_PROP)) || 0;
   return values.slice(1).reduce((max, r) => {
     const s = String(r[idCol]).trim();
     return /^\d+$/.test(s) ? Math.max(max, Number(s)) : max;
-  }, 0) + 1;
+  }, issued) + 1;
+}
+
+// Запам'ятовує № нової книги як виданий (лише числовий і лише якщо більший за попередній)
+function rememberBookId_(id) {
+  if (!/^\d+$/.test(id)) return;
+  const props = PropertiesService.getScriptProperties();
+  if (Number(id) > (Number(props.getProperty(LAST_BOOK_ID_PROP)) || 0)) props.setProperty(LAST_BOOK_ID_PROP, id);
 }
 
 // Різні непорожні значення колонки, за алфавітом
@@ -817,9 +843,12 @@ function formInit() {
       .filter(v => !FIELD_OPTIONS[name].some(o => o.toLowerCase() === v.toLowerCase()));
     return FIELD_OPTIONS[name].concat(extra);
   };
+  const nextId = formNextId_(values, id);
+  // номери, вписані в таблицю вручну, теж вважаються виданими — щоб не повторились після видалення
+  rememberBookId_(String(nextId - 1));
   return {
     books,
-    nextId: formNextId_(values, id),
+    nextId,
     categories: readCategories_(),
     conditions: FIELD_OPTIONS['Стан'],
     bindings: merge(BINDING_COL),
@@ -896,10 +925,10 @@ function formSaveBook(input, isNew) {
     if (idCol < 0) throw new Error('У каталозі немає колонки «№».');
     let rowIndex;
     if (isNew) {
-      if (!b.id) b.id = String(formNextId_(values, idCol));
-      if (formFindRow_(values, idCol, b.id) >= 0) {
-        throw new Error(`№${b.id} уже зайнятий іншою книгою. Відкрийте її або змініть номер.`);
-      }
+      // № нової книги завжди ставимо тут, а не беремо з форми: форма лише показує очікуваний. Якщо тим часом
+      // хтось додав книгу в таблицю, ця отримає наступний — без помилки й без повтору номера видаленої книги
+      b.id = String(formNextId_(values, idCol));
+      rememberBookId_(b.id);
       rowIndex = sheet.getLastRow(); // наступний після останнього заповненого (values рахує з 0)
     } else {
       rowIndex = formFindRow_(values, idCol, b.id);

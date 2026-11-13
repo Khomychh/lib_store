@@ -16,6 +16,11 @@
   h2 small { font-weight: normal; color: #5f6368; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 12px; }
   .grid .w2 { grid-column: span 2; }
+  .grid .w3 { grid-column: span 3; }
+  h3 { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; color: #5f6368;
+       margin: 14px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #e8eaed; }
+  h3:first-of-type { margin-top: 0; }
+  h3 small { font-weight: normal; text-transform: none; letter-spacing: 0; }
   .grid .w4 { grid-column: span 4; }
   label { display: block; font-size: 12px; color: #5f6368; margin-bottom: 2px; }
   label b { color: #d93025; font-weight: normal; }
@@ -70,33 +75,42 @@
   <h2 id="mode"></h2>
 
   <form id="form" autocomplete="off">
+    <!-- № нової книги ставить сервер; тут він лише для редагування наявної -->
+    <input type="hidden" name="id">
+
+    <h3>Книга <small>— переписуєте з книги</small></h3>
     <div class="grid">
-      <div><label>№</label><input name="id"><div class="hint" data-for="id"></div></div>
-      <div class="w2"><label>Назва <b>*</b></label><input name="title"><div class="hint" data-for="title"></div></div>
+      <div class="w3"><label>Назва <b>*</b></label><input name="title"><div class="hint" data-for="title"></div></div>
       <div><label>Автор</label><input name="author"><div class="hint" data-for="author"></div></div>
 
-      <div><label>Ціна, грн <b>*</b></label><input name="price" inputmode="decimal"><div class="hint" data-for="price"></div></div>
-      <div><label>Акційна ціна</label><input name="salePrice" inputmode="decimal"><div class="hint" data-for="salePrice"></div></div>
-      <div><label>К-сть <b>*</b></label><input name="stock" inputmode="numeric"><div class="hint" data-for="stock"></div></div>
-      <div><label>Стан</label><select name="condition"></select><div class="hint" data-for="condition"></div></div>
-
       <div class="w2"><label>Категорія</label><input name="category" placeholder="— без категорії —"><div class="hint" data-for="category"></div></div>
-      <div><label>Палітурка</label><input name="binding"><div class="hint" data-for="binding"></div></div>
       <div><label>Мова</label><input name="language"><div class="hint" data-for="language"></div></div>
+      <div><label>Палітурка</label><input name="binding"><div class="hint" data-for="binding"></div></div>
 
       <div class="w2"><label>Видавництво</label><input name="publisher"><div class="hint" data-for="publisher"></div></div>
       <div><label>Рік</label><input name="year" inputmode="numeric"><div class="hint" data-for="year"></div></div>
       <div><label>Сторінки</label><input name="pages" inputmode="numeric"><div class="hint" data-for="pages"></div></div>
 
       <div class="w2"><label>ISBN</label><input name="isbn"><div class="hint" data-for="isbn"></div></div>
-      <div class="w2"><label>Передзамовлення <small>(можна замовити більше, ніж є)</small></label><select name="preorder"><option value="">— (недоступне) —</option><option>Доступне</option><option>Недоступне</option></select></div>
-
-      <div class="w4"><label class="check"><input type="checkbox" name="publish" checked> Публікація <small>(дозволено показувати на сайті; інші умови — ціна, наявність чи передзамовлення — теж потрібні)</small></label><div class="hint" data-for="publish"></div></div>
-
-      <div class="w4"><label>Опис <small>(новий рядок — новий абзац)</small></label><textarea name="description"></textarea></div>
     </div>
 
     <div id="dupe" class="warn" hidden></div>
+
+    <h3>Примірник і ціна</h3>
+    <div class="grid">
+      <div><label>Стан</label><select name="condition"></select><div class="hint" data-for="condition"></div></div>
+      <div><label>К-сть <b>*</b></label><input name="stock" inputmode="numeric"><div class="hint" data-for="stock"></div></div>
+      <div><label>Ціна, грн <b>*</b></label><input name="price" inputmode="decimal"><div class="hint" data-for="price"></div></div>
+      <div><label>Акційна ціна</label><input name="salePrice" inputmode="decimal"><div class="hint" data-for="salePrice"></div></div>
+    </div>
+
+    <h3>На сайті</h3>
+    <div class="grid">
+      <div class="w2"><label class="check" title="Дозволено показувати на сайті. Потрібні й інші умови: ціна, наявність чи передзамовлення"><input type="checkbox" name="publish" checked> Публікація</label><div class="hint" data-for="publish"></div></div>
+      <div class="w2"><label class="check" title="Книгу можна замовити більше, ніж є, — навіть з К-сть 0"><input type="checkbox" name="preorder"> Передзамовлення <small>(можна замовити більше, ніж є)</small></label></div>
+
+      <div class="w4"><label>Опис <small>(новий рядок — новий абзац)</small></label><textarea name="description"></textarea></div>
+    </div>
 
     <div id="photoBox" class="photos" hidden>
       <label>Фото <span id="photoInfo"></span></label>
@@ -116,7 +130,7 @@ const $ = s => document.querySelector(s);
 const form = $('#form');
 const field = name => form.elements[name];
 const FIELDS = ['id', 'title', 'author', 'year', 'pages', 'price', 'salePrice', 'stock',
-  'category', 'condition', 'binding', 'language', 'publisher', 'isbn', 'description', 'preorder'];
+  'category', 'condition', 'binding', 'language', 'publisher', 'isbn', 'description'];
 // після «Додати» ці поля лишаються: зручно вносити пачку книг одного розділу
 const STICKY = ['category', 'condition', 'binding', 'language'];
 
@@ -125,6 +139,7 @@ let editing = null;   // № книги, яку редагуємо; null — н�
 let dirty = false;
 let photos = [];      // [{ base64, url }]
 let busy = false;
+let preorderWas = ''; // «Передзамовлення» книги в таблиці до змін: порожнє лишається порожнім, якщо галочку не ставили
 
 // Виклик серверної функції як Promise
 function call(fn, ...args) {
@@ -288,16 +303,6 @@ function fillConditions(extra) {
   list.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
 }
 
-// Значення з таблиці, якого немає серед варіантів списку (напр., «Не доступне»): додаємо його, щоб збереження не стерло
-function keepOption(sel, value) {
-  sel.querySelectorAll('option[data-extra]').forEach(o => o.remove());
-  if (!value || [...sel.options].some(o => o.value === value)) return;
-  const o = document.createElement('option');
-  o.value = o.textContent = value;
-  o.dataset.extra = '1';
-  sel.appendChild(o);
-}
-
 // Підказка під полем, де можна вписати своє значення
 const LISTS = { author: 'authors', publisher: 'publishers', binding: 'bindings', language: 'languages' };
 function listHint(name) {
@@ -332,6 +337,8 @@ function values() {
   // кома в цінах — звична річ, таблиці потрібна крапка
   ['price', 'salePrice'].forEach(k => { v[k] = v[k].replace(',', '.').replace(/\s/g, ''); });
   v.publish = field('publish').checked ? 'true' : 'false';
+  // у таблиці — «Доступне» / «Недоступне»; зняли галочку з книги, де щось стояло, — «Недоступне», інакше порожньо
+  v.preorder = field('preorder').checked ? 'Доступне' : preorderWas ? 'Недоступне' : '';
   return v;
 }
 
@@ -342,10 +349,6 @@ function check() {
   const warnings = {};
   const num = s => (s === '' ? null : Number(s));
   if (!v.title) errors.title = 'Обов’язкове поле';
-  if (v.id && !/^[\p{L}\p{N}_-]+$/u.test(v.id)) errors.id = 'Лише літери, цифри, дефіс';
-  if (!editing && v.id && data.books.some(b => b[0].toLowerCase() === v.id.toLowerCase())) {
-    errors.id = 'Цей № уже зайнятий';
-  }
   const price = num(v.price);
   if (!(price > 0)) errors.price = 'Число більше 0';
   const stock = num(v.stock);
@@ -375,7 +378,7 @@ function check() {
 
 function showCheck() {
   const { errors, warnings } = check();
-  ['id', 'title', 'price', 'salePrice', 'stock', 'year', 'pages', 'isbn', 'category'].forEach(k => {
+  ['title', 'price', 'salePrice', 'stock', 'year', 'pages', 'isbn', 'category'].forEach(k => {
     const hint = form.querySelector(`.hint[data-for="${k}"]`);
     const input = field(k);
     const touched = input.dataset.touched || input.value;
@@ -386,7 +389,7 @@ function showCheck() {
     else if (warnings[k]) {
       hint.textContent = warnings[k];
       hint.className = 'hint' + (warnings[k].startsWith('✓') ? ' ok' : k === 'isbn' ? ' err' : '');
-    } else if (!(k === 'id' && !editing)) { hint.textContent = ''; hint.className = 'hint'; }
+    } else { hint.textContent = ''; hint.className = 'hint'; }
   });
   const pubHint = form.querySelector('.hint[data-for="publish"]');
   pubHint.textContent = field('publish').checked ? '' : 'Без галочки книги не буде на сайті, і замовити її не вийде';
@@ -418,18 +421,14 @@ function showDupes() {
 
 // ───── Режими ─────
 
+// № — у заголовку, не полем: нова книга отримує наступний вільний, у наявної він не змінюється
 function setMode() {
-  field('id').readOnly = Boolean(editing);
   const mode = $('#mode');
-  mode.textContent = editing ? 'Редагування ' : 'Нова книга';
-  if (editing) {
-    const small = document.createElement('small');
-    small.textContent = `№${editing} · № змінити не можна: за ним кошик, замовлення й фото`;
-    mode.appendChild(small);
-  }
+  mode.textContent = editing ? `Книга №${editing} ` : `Нова книга №${data.nextId} `;
+  const small = document.createElement('small');
+  small.textContent = editing ? '· № не змінюється: за ним кошик, замовлення й фото' : '· номер ставиться сам';
+  mode.appendChild(small);
   $('#saveBtn').textContent = editing ? 'Зберегти зміни' : 'Додати книгу';
-  const idHint = form.querySelector('.hint[data-for="id"]');
-  if (!editing) { idHint.textContent = 'Наступний вільний'; idHint.className = 'hint'; }
 }
 
 function clearPhotos() {
@@ -449,6 +448,7 @@ function newBook(keepSticky) {
   if (keepSticky) STICKY.forEach(k => { keep[k] = field(k).value; });
   resetForm();
   editing = null;
+  preorderWas = '';
   fillConditions();
   Object.keys(keep).forEach(k => { field(k).value = keep[k]; });
   field('id').value = data.nextId;
@@ -479,9 +479,10 @@ async function openBook(id) {
     resetForm();
     editing = book.id;
     fillConditions(book.condition);
-    keepOption(field('preorder'), book.preorder);
     FIELDS.forEach(k => { field(k).value = book[k]; });
     field('publish').checked = book.publish === 'true';
+    preorderWas = book.preorder;
+    field('preorder').checked = /^доступн/i.test(book.preorder);
     $('#photoInfo').textContent = data.photos ? `(уже є: ${book.photoCount}; нові додадуться після них)` : '';
     clearPhotos();
     setMode();
