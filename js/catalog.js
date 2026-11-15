@@ -54,6 +54,9 @@ async function init() {
   // збережений каталог без добірок (з часів до них) на сторінці добірки нічого не покаже — чекаємо свіжий
   let cached = loadCachedBooks();
   if (cached && !cached.collections && COLL_PATH.test(location.pathname)) cached = null;
+  // так само зі сторінкою категорії, якої збережений каталог ще не знає (додали нову)
+  const catSlug = location.pathname.match(CAT_PATH)?.[1];
+  if (cached && catSlug && ![...categorySlugs(categoryNames(cached.categories, cached.books)).values()].includes(catSlug)) cached = null;
   if (cached) setBooks(cached, false);
   // на опублікованому сайті перші книги вже вписані в HTML (scripts/build.mjs) — заглушки не потрібні
   else if (!$('list').children.length) renderSkeleton();
@@ -87,24 +90,27 @@ function loadCachedBooks() {
   } catch { return null; }
 }
 
-// ---------- Сторінки каталогу: /, /storinka/2/, /storinka/3/…, добірки /dobirka/<адреса>/ ----------
+// ---------- Сторінки каталогу: /, /storinka/2/, /storinka/3/…, добірки /dobirka/<адреса>/,
+// категорії /katehoriia/<адреса>/, /katehoriia/<адреса>/2/… ----------
 // Збирач робить такі сторінки й статично (scripts/build.mjs) — для Google і без JavaScript;
 // тут перемикаємо їх без перезавантаження. Кнопка «Назад» повертає на попередню сторінку
 const PAGE_PATH = /^\/storinka\/(\d+)\/?$/;
 function pageFromPath() {
-  const m = location.pathname.match(PAGE_PATH);
-  return m ? Math.max(1, Number(m[1])) : 1;
+  const m = location.pathname.match(PAGE_PATH) || location.pathname.match(CAT_PATH);
+  return m?.at(-1) ? Math.max(1, Number(m.at(-1))) : 1;
 }
 const pagePath = n => n > 1 ? `/storinka/${n}/` : '/';
+// сторінка каталогу з урахуванням вибраної категорії
+const listPath = n => cat && cat !== NONE && cats.has(cat) ? catPath(cat, n) : pagePath(n);
 // адресу міняємо лише на сторінках каталогу: на сторінці книги чи 404 вона своя
 const onCatalogPath = () => !document.body.hasAttribute('data-page') &&
   (location.pathname === '/' || location.pathname.endsWith('/index.html') || PAGE_PATH.test(location.pathname) ||
-    COLL_PATH.test(location.pathname));
+    COLL_PATH.test(location.pathname) || CAT_PATH.test(location.pathname));
 
-// Адреса = сторінка каталогу чи добірка + вибрана категорія; відкрита картка книги (#book-…) лишається
+// Адреса = сторінка каталогу, категорія чи добірка (+ категорія в ній); відкрита картка книги (#book-…) лишається
 function syncUrl(push) {
   const hash = location.hash.startsWith('#book-') ? location.hash : catHash();
-  const path = onCatalogPath() ? (coll ? collPath(coll) : pagePath(pageNo)) : location.pathname;
+  const path = onCatalogPath() ? (coll ? collPath(coll) : listPath(pageNo)) : location.pathname;
   if (path + hash === location.pathname + location.hash) return;
   history[push ? 'pushState' : 'replaceState'](null, '', path + location.search + hash);
 }
@@ -121,7 +127,9 @@ function goPage(n) {
 addEventListener('popstate', () => {
   if (!onCatalogPath() || !books.length) return;
   pageNo = pageFromPath();
-  if (collFromPath() !== coll) {
+  const wantCat = catFromUrl();
+  if (collFromPath() !== coll || wantCat !== cat) {
+    cat = wantCat;
     setColl(collFromPath());
     applyFilter(true);
   } else render();
@@ -146,7 +154,7 @@ function renderPager(pages) {
   if (pages < 2) return;
   const link = (n, cls, content, label) => {
     const a = el('a', cls);
-    a.href = pagePath(n);
+    a.href = listPath(n);
     a.append(...content);
     if (label) a.setAttribute('aria-label', label);
     a.onclick = e => { e.preventDefault(); goPage(n); };
@@ -191,7 +199,7 @@ function setBooks(catalog, keepPage) {
   // добірка з адреси; якої вже немає (прибрали з аркуша, усе продано) — показуємо всі книги й міняємо адресу
   const wantColl = onCatalogPath() ? collFromPath() : '';
   setColl(wantColl);
-  readHashCategory();
+  readUrlCategory();
   // категорія з посилання чи з минулого показу могла спорожніти — тоді показуємо всі книги
   const anyCategory = [...cats.values()].some(hasBooks);
   if (!anyCategory || (cat === NONE ? !uncategorized : cat && !cats.get(cat)?.count)) cat = '';

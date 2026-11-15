@@ -18,10 +18,12 @@ const collFromPath = () => {
 };
 const curColl = () => collBySlug.get(coll);
 
-// назва вкладки: на сторінці добірки — її назва; повертаючись, — назва головної
-// (відкрили одразу сторінку добірки — назви головної не знаємо, тоді просто назва магазину)
+// назва вкладки: на сторінці добірки чи категорії — її назва; повертаючись, — назва головної
+// (відкрили одразу сторінку добірки чи категорії — назви головної не знаємо, тоді просто назва магазину)
 const STORE_NAME = document.querySelector('.brand').textContent.trim();
-const HOME_TITLE = COLL_PATH.test(location.pathname) ? STORE_NAME : document.title;
+const HOME_TITLE = COLL_PATH.test(location.pathname) || CAT_PATH.test(location.pathname) ? STORE_NAME : document.title;
+// назва сторінки категорії — як у збирача (catTitle у scripts/build.mjs)
+const catTitle = name => /книг/i.test(name) ? `${name} — купити` : `${name} — купити книги`;
 
 // Скрипт уже лишив у добірках лише книги з сайту; тут — ще раз, бо збережений каталог міг застаріти
 function buildCollections(list) {
@@ -43,8 +45,7 @@ function setColl(slug) {
   if (coll && !was && sortBy === 'newest') setSort('collection');
   else if (!coll && sortBy === 'collection') setSort('newest');
   else setSort(sortBy); // пункт «Як у добірці» видно лише в добірці
-  const c = curColl();
-  document.title = c ? `${c.name} | ${STORE_NAME}` : HOME_TITLE;
+  // назву вкладки ставить renderIntro
 }
 
 // Відкрити добірку (чи вийти з неї — '') на місці, без перезавантаження; «Назад» повертає, як було
@@ -57,24 +58,100 @@ function selectColl(slug) {
   scrollTo({ top: 0, behavior: 'instant' });
 }
 
-// ---------- Заголовок добірки над книгами ----------
-// Розмітку повторює збирач (collIntroHtml у scripts/build.mjs) — міняєте тут, міняйте й там
+// ---------- Заголовок добірки чи категорії над книгами ----------
+// Розмітку повторює збирач (collIntroHtml і catIntroHtml у scripts/build.mjs) — міняєте тут, міняйте й там.
+// Категорія — лише поза добіркою: у добірці вона звичайний фільтр з пігулкою
+let introFor = null; // для якої добірки чи категорії намальовано: пошук перемальовує список, а заголовок — ні
 function renderIntro() {
   const box = $('collIntro');
   const c = curColl();
-  box.hidden = !c;
-  if (!c) { box.textContent = ''; return; }
-  const back = el('a', 'back glass');
-  back.href = '/';
-  back.append(arrow(-1), 'Усі книги');
-  back.onclick = e => { e.preventDefault(); selectColl(''); };
-  const head = el('section', 'coll-head glass');
-  // на головній <h1> — назва магазину; на сторінці добірки (збирач робить назву магазину посиланням) — назва добірки
-  head.append(el('p', 'coll-kicker', 'Добірка'), el(document.querySelector('h1.brand') ? 'h2' : 'h1', null, c.name));
-  for (const text of (c.description || '').split(/\n+/).map(s => s.trim()).filter(Boolean)) {
-    head.append(el('p', 'coll-desc', text));
+  const node = !c && cat && cat !== NONE ? cats.get(cat) : null;
+  document.title = c ? `${c.name} | ${STORE_NAME}` : node ? `${catTitle(node.name)} | ${STORE_NAME}` : HOME_TITLE;
+  box.hidden = !c && !node;
+  if (box.hidden) { box.textContent = ''; introFor = null; return; }
+  // скільки книг показано (з пошуком і фільтрами) — у табличці категорії, замість окремого лічильника
+  const shown = () => {
+    const n = box.querySelector('.cat-count');
+    if (n) n.textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
+  };
+  if (introFor === (c || node)) { shown(); return; }
+  introFor = c || node;
+  // на головній <h1> — назва магазину; на сторінці добірки чи категорії (збирач робить назву магазину посиланням) — її назва
+  const heading = document.querySelector('h1.brand') ? 'h2' : 'h1';
+  if (c) {
+    const back = el('a', 'back glass');
+    back.href = '/';
+    back.append(arrow(-1), 'Усі книги');
+    back.onclick = e => { e.preventDefault(); selectColl(''); };
+    const head = el('section', 'coll-head glass');
+    head.append(el('p', 'coll-kicker', 'Добірка'), el(heading, null, c.name));
+    for (const text of (c.description || '').split(/\n+/).map(s => s.trim()).filter(Boolean)) {
+      head.append(el('p', 'coll-desc', text));
+    }
+    box.replaceChildren(back, head);
+  } else {
+    box.replaceChildren(catIntro(node, heading));
+    shown();
   }
-  box.replaceChildren(back, head);
+}
+
+// Категорія — один ряд: невелика табличка (шлях угору «Усі книги › Християнські книги ›», назва й кількість книг)
+// і праворуч від неї підкатегорії, що гортаються вбік (на ПК — ще й стрілками). На телефоні підкатегорії — під табличкою
+function catIntro(node, heading) {
+  const go = (a, name) => {
+    a.href = name ? catPath(name) : '/';
+    a.onclick = e => { e.preventDefault(); selectCat(name); };
+    return a;
+  };
+  const path = el('nav', 'cat-path');
+  path.setAttribute('aria-label', 'Розділи вище');
+  for (const name of ['', ...[...node.lineage].slice(1).reverse()]) {
+    path.append(go(el('a', null, name || 'Усі книги'), name), el('span', 'sep', '›'));
+  }
+  const title = el('div', 'cat-title');
+  title.append(el(heading, null, node.name), el('span', 'cat-count'));
+  const label = el('section', 'cat-label glass');
+  label.append(path, title);
+  const head = el('div', 'cat-head');
+  head.append(label);
+
+  const subs = node.children.filter(hasBooks);
+  if (!subs.length) return head;
+  const strip = el('ul', 'cat-strip');
+  strip.setAttribute('aria-label', 'Підкатегорії');
+  for (const s of subs) {
+    const a = go(el('a', 'glass', s.name), s.name);
+    a.append(el('span', 'n', String(s.count)));
+    const li = el('li');
+    li.append(a);
+    strip.append(li);
+  }
+  const nav = el('div', 'cat-nav');
+  const prev = el('button');
+  const next = el('button');
+  prev.type = next.type = 'button';
+  prev.className = next.className = 'glass';
+  prev.setAttribute('aria-label', 'Попередні підкатегорії');
+  next.setAttribute('aria-label', 'Наступні підкатегорії');
+  prev.append(arrow(-1));
+  next.append(arrow(1));
+  nav.append(prev, next);
+  head.append(strip, nav);
+  const step = dir => strip.scrollBy({ left: dir * strip.clientWidth * 0.8, behavior: 'smooth' });
+  prev.onclick = () => step(-1);
+  next.onclick = () => step(1);
+  // край, за яким є ще підкатегорії, тане; стрілки — лише коли рядок не вміщається
+  strip.addEventListener('scroll', () => {
+    const left = strip.scrollLeft > 4;
+    const right = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 4;
+    strip.toggleAttribute('data-left', left);
+    strip.toggleAttribute('data-right', right);
+    prev.disabled = !left;
+    next.disabled = !right;
+    nav.hidden = !left && !right;
+  }, { passive: true });
+  requestAnimationFrame(() => strip.dispatchEvent(new Event('scroll')));
+  return head;
 }
 
 // ---------- Полиці на головній ----------
@@ -146,7 +223,7 @@ function shelfSection(c) {
   }, { passive: true });
   return sec;
 }
-// полиця могла стати ширшою чи вужчою — оновлюємо кнопки
+// полиця чи рядок підкатегорій могли стати ширшими чи вужчими — оновлюємо кнопки
 addEventListener('resize', () => {
-  for (const row of document.querySelectorAll('#shelves .shelf-row')) row.dispatchEvent(new Event('scroll'));
+  for (const row of document.querySelectorAll('#shelves .shelf-row, #collIntro .cat-strip')) row.dispatchEvent(new Event('scroll'));
 });

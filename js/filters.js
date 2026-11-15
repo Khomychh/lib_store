@@ -68,7 +68,8 @@ function renderFilters() {
 
   const pills = $('picked');
   pills.textContent = '';
-  if (cat) {
+  // звичайну категорію показує заголовок над книгами (renderIntro у js/collections.js), пігулка — лише для решти
+  if (cat && (cat === NONE || coll)) {
     const label = cat === NONE ? 'Без категорії' : cat;
     const btn = el('button', 'picked', label);
     btn.type = 'button';
@@ -248,6 +249,57 @@ let cats = new Map();
 let uncategorized = 0;
 let cat = ''; // вибрана категорія; '' — усі книги
 
+// ---------- Адреси категорій: /katehoriia/<адреса>/, далі сторінки /katehoriia/<адреса>/2/ ----------
+// Адреса — назва латиницею (офіційна транслітерація): «Богослов'я» → bohoslovia. Збіглися дві — друга отримує -2.
+// Ті самі функції (slugify, categoryNames, categorySlugs) — у scripts/build.mjs: міняєте тут — міняйте й там,
+// інакше посилання й зібрані сторінки розійдуться
+const TRANSLIT = {
+  а: 'a', б: 'b', в: 'v', г: 'h', ґ: 'g', д: 'd', е: 'e', є: 'ie', ж: 'zh', з: 'z', и: 'y', і: 'i', ї: 'i', й: 'i',
+  к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts',
+  ч: 'ch', ш: 'sh', щ: 'shch', ь: '', ю: 'iu', я: 'ia', ё: 'io', ъ: '', ы: 'y', э: 'e',
+};
+const TRANSLIT_START = { є: 'ye', ї: 'yi', й: 'y', ю: 'yu', я: 'ya' }; // на початку слова
+function slugify(name) {
+  return String(name).toLowerCase().replace(/['’ʼ`]/g, '').replace(/зг/g, 'zgh')
+    .replace(/\p{L}+/gu, word => [...word].map((c, i) => (i === 0 && TRANSLIT_START[c]) || (TRANSLIT[c] ?? c)).join(''))
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+// Усі категорії в тому порядку, в якому їх бачить сайт: з аркуша, потім ті, що є лише в книгах
+function categoryNames(list, bookList) {
+  const names = new Set();
+  for (const c of list || []) {
+    const name = String(c.name || '').trim();
+    if (name) names.add(name);
+  }
+  for (const b of bookList || []) if (b.category) names.add(b.category);
+  return [...names];
+}
+function categorySlugs(names) {
+  const slugs = new Map(), used = new Set();
+  for (const name of names) {
+    const base = slugify(name) || 'katehoriia';
+    let slug = base;
+    for (let i = 2; used.has(slug); i++) slug = `${base}-${i}`;
+    used.add(slug);
+    slugs.set(name, slug);
+  }
+  return slugs;
+}
+const CAT_PATH = /^\/katehoriia\/([^/]+)\/(?:(\d+)\/?)?$/;
+let catBySlug = new Map();
+const catPath = (name, n = 1) => `/katehoriia/${cats.get(name).slug}/` + (n > 1 ? `${n}/` : '');
+const catFromPath = () => {
+  const m = location.pathname.match(CAT_PATH);
+  return m ? catBySlug.get(decodeURIComponent(m[1])) || '' : '';
+};
+// Категорія з адреси: зі шляху (/katehoriia/…), а «Без категорії» й категорія в добірці — з #cat=…
+function catFromUrl() {
+  if (CAT_PATH.test(location.pathname)) return catFromPath();
+  const m = location.hash.match(/^#cat=(.+)$/);
+  return m ? (m[1] === 'none' ? NONE : decodeURIComponent(m[1])) : '';
+}
+
 function buildCategories(list) {
   cats = new Map();
   const add = (name, parent) => cats.set(name, { name, parent, children: [], count: 0, lineage: [] });
@@ -257,6 +309,10 @@ function buildCategories(list) {
   }
   // категорія є в книзі, але її немає на аркуші — показуємо її на верхньому рівні, щоб помилку було видно
   for (const b of books) if (b.category && !cats.has(b.category)) add(b.category, '');
+  // порядок cats — той самий, що в categoryNames, тож і адреси ті самі, що в збирача
+  const slugs = categorySlugs([...cats.keys()]);
+  for (const n of cats.values()) n.slug = slugs.get(n.name);
+  catBySlug = new Map([...cats.values()].map(n => [n.slug, n.name]));
   for (const n of cats.values()) if (n.parent === n.name || !cats.has(n.parent)) n.parent = '';
   for (const n of cats.values()) if (n.parent) cats.get(n.parent).children.push(n);
   // шлях від категорії вгору; захист від кола, якщо в аркуші дві категорії вказали одна на одну
@@ -278,9 +334,9 @@ function inCategory(b) {
 
 const hasBooks = n => n.count > 0;
 
+// адресу (/katehoriia/… чи #cat=…) міняє applyFilter → syncUrl
 function selectCat(name) {
   cat = name;
-  history.replaceState(null, '', location.pathname + location.search + catHash());
   applyFilter();
   // у меню розгортається гілка нової категорії — перебудовуємо його й лишаємо фокус на вибраній
   if (!$('filterMenu').hidden) {
@@ -289,17 +345,20 @@ function selectCat(name) {
   }
 }
 
+// Категорія в каталозі — частина шляху (/katehoriia/…, див. listPath у js/catalog.js); хвостом #cat=… лише
+// «Без категорії», категорія всередині добірки і поза сторінками каталогу
 function catHash() {
   if (!cat) return '';
+  if (cat !== NONE && !coll && onCatalogPath()) return '';
   return '#cat=' + (cat === NONE ? 'none' : encodeURIComponent(cat));
 }
 
-// #cat=Богослов'я в адресі відкриває категорію після завантаження каталогу. Читаємо щоразу:
+// Категорія з адреси відкривається після завантаження каталогу. Читаємо щоразу:
 // збережений у браузері каталог може ще не знати категорії, а свіжий від Google — уже знає.
-// Адреса завжди відповідає вибору (selectCat її оновлює), тож чужого вибору це не перебʼє
-function readHashCategory() {
-  const m = location.hash.match(/^#cat=(.+)$/);
-  if (m) cat = m[1] === 'none' ? NONE : decodeURIComponent(m[1]);
+// Адреса завжди відповідає вибору (selectCat її оновлює), тож чужого вибору це не перебʼє.
+// Старі посилання /#cat=Богослов'я теж працюють: syncUrl переводить їх на /katehoriia/…
+function readUrlCategory() {
+  if (CAT_PATH.test(location.pathname) || location.hash.startsWith('#cat=')) cat = catFromUrl();
 }
 
 const categoryRoots = () => [...cats.values()].filter(n => !n.parent && hasBooks(n));

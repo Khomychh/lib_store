@@ -842,6 +842,76 @@ header { padding: 56px 16px 32px; }
 .coll-head :is(h1, h2) { font: 600 clamp(26px, 3.4vw, 36px)/1.15 Literata, Georgia, serif; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
 .coll-desc { margin: 12px 0 0; max-width: 68ch; font: 400 16px/1.65 Literata, Georgia, serif; text-wrap: pretty; }
 .coll-desc + .coll-desc { margin-top: .6em; }
+
+/* Категорія: без суцільного скла — лише табличка під розмір назви (шлях угору й назва)
+   і підкатегорії одним рядком скляних кнопок, як «‹ Усі книги», що гортається вбік */
+/* один ряд: табличка, підкатегорії, стрілки; кількість книг — у табличці, окремий лічильник під нею не потрібен */
+.cat-head { display: flex; align-items: center; gap: 14px; }
+.cat-label {
+  flex: none; max-width: min(46%, 520px); padding: 9px 20px 11px;
+  border-radius: 16px; box-shadow: var(--shadow);
+}
+.cat-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
+.cat-count { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#collIntro:has(.cat-label) ~ .summary .count { display: none; }
+#collIntro:has(.cat-label) ~ .summary { margin: 0 0 22px; }
+#collIntro:has(.cat-label) ~ .summary:has(.picked) { margin: 14px 0 20px; }
+.cat-path { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; font-size: 13px; color: var(--muted); }
+.cat-path a { color: inherit; text-decoration: none; font-weight: 500; border-radius: 4px; }
+.cat-path a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.cat-path .sep { opacity: .6; }
+.cat-label :is(h1, h2) {
+  margin: 1px 0 0;
+  font: 600 clamp(22px, 2.6vw, 28px)/1.15 Literata, Georgia, serif; letter-spacing: -.015em;
+  text-wrap: balance;
+}
+.cat-nav { display: flex; gap: 6px; flex: none; }
+.cat-nav button {
+  display: grid; place-items: center;
+  width: 38px; height: 38px; padding: 0;
+  border: 1px solid var(--glass-edge); border-radius: 50%;
+  box-shadow: 0 1px 0 var(--glass-edge) inset, 0 4px 14px rgba(0, 0, 0, .2);
+  color: var(--ink); cursor: pointer;
+}
+.cat-nav button:hover { background: var(--glass-strong); }
+/* на початку чи в кінці рядка зайва стрілка зникає, але місце лишається — друга не стрибає */
+.cat-nav button:disabled { visibility: hidden; }
+/* знизу місце для тіні кнопок: рядок гортається вбік і обрізає все, що за ним */
+.cat-strip {
+  --fade-l: 0px; --fade-r: 0px;
+  flex: 1; min-width: 0;
+  display: flex; gap: 8px;
+  list-style: none; margin: 0; padding: 8px 0 12px;
+  overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+}
+.cat-strip::-webkit-scrollbar { display: none; }
+.cat-strip[data-left] { --fade-l: 40px; }
+.cat-strip[data-right] { --fade-r: 40px; }
+.cat-strip li { flex: none; }
+.cat-strip a {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  padding: 7px 14px 8px;
+  border: 1px solid var(--glass-edge); border-radius: 999px;
+  box-shadow: 0 1px 0 var(--glass-edge) inset, 0 4px 14px rgba(0, 0, 0, .2);
+  color: var(--ink); text-decoration: none; white-space: nowrap;
+  font-size: 14px; font-weight: 500;
+}
+/* кнопки малі, і крізь звичайне скло фото проступає надто різко — скло тут щільніше */
+.cat-strip a.glass { background: var(--glass-strong); }
+.cat-strip a.glass:hover { background: var(--menu); }
+.cat-strip a:focus-visible { outline-offset: -2px; }
+.cat-strip .n { font-size: 12.5px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (hover: none) { .cat-nav { display: none; } }
+/* вузько — підкатегорії під табличкою, рядок від краю до краю екрана */
+@media (max-width: 760px) {
+  .cat-head { flex-wrap: wrap; row-gap: 4px; }
+  .cat-label { max-width: 100%; padding: 8px 16px 10px; }
+  .cat-strip { flex-basis: 100%; margin: 0 -16px; padding: 6px 16px 10px; scroll-padding: 0 16px; }
+  .cat-nav { display: none; }
+  #collIntro:has(.cat-label) ~ .summary { margin-bottom: 14px; }
+}
 @media (max-width: 600px) {
   .coll-head { padding: 22px 20px 20px; }
 }

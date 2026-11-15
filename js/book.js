@@ -15,15 +15,15 @@ function openBook(b) {
   by.textContent = b.author || '';
   by.hidden = !b.author;
 
-  // шлях категорії над назвою: «Богослов'я › Етика»; клік показує в каталозі всі книги цієї категорії
+  // шлях категорії над назвою: «Богослов'я › Етика»; клік показує всі книги цієї категорії (/katehoriia/…)
   const crumbs = $('bookCat');
   crumbs.textContent = '';
   const lineage = b.category ? [...(cats.get(b.category)?.lineage || [b.category])].reverse() : [];
   lineage.forEach((name, i) => {
     if (i) crumbs.append(el('span', 'sep', '›'));
     const a = el('a', null, name);
-    a.href = '/#cat=' + encodeURIComponent(name);
-    // на головній — без переходу: закриваємо картку й вибираємо категорію; на окремих сторінках посилання веде на головну
+    a.href = cats.has(name) ? catPath(name) : '/';
+    // у каталозі — без переходу: закриваємо картку й вибираємо категорію; на окремих сторінках — перехід на сторінку категорії
     a.onclick = e => {
       if (document.body.hasAttribute('data-page')) return;
       e.preventDefault();

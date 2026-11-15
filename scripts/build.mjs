@@ -7,6 +7,8 @@
 //    і розміткою товару для Google;
 //  - на всі сторінки дописує адресу, прев'ю й розмітку магазину; робить sitemap.xml, robots.txt і 404.html;
 //  - для кожної добірки з аркуша «Добірки» робить сторінку /dobirka/<адреса>/ з її книгами, а на головній — полиці добірок;
+//  - для кожної категорії з книгами — сторінки /katehoriia/<адреса>/ (і /2/, /3/…), щоб Google знаходив їх за запитами
+//    на кшталт «купити дитячі книги»; на всіх сторінках — «хлібні крихти» для Google;
 //  - робить products.xml — файл товарів для Google Merchant Center (лише книги з фото);
 //  - збирає текстові сторінки (доставка й оплата, повернення, контакти) у /<назва файлу в pages/>/ —
 //    з Google Документів через Apps Script, а якщо їх немає — з файлів pages/.
@@ -150,7 +152,7 @@ function bookArticle(b) {
     .map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('');
   const desc = paragraphs(b.description).map(p => `<p>${esc(p)}</p>`).join('');
   const crumbs = categoryLineage(b.category)
-    .map(name => `<a href="/#cat=${encodeURIComponent(name)}">${esc(name)}</a>`).join('<span class="sep">›</span>');
+    .map(name => `<a href="${catHref(name)}">${esc(name)}</a>`).join('<span class="sep">›</span>');
   return `<a class="back glass" href="/"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg>Усі книги</a>
   <article class="book-page glass">
     <div class="page-side"><div class="page-hold">
@@ -198,6 +200,36 @@ function isbn13(raw) {
   return null;
 }
 
+// Умови повернення для Google — як на сторінці «Повернення»: книги належної якості не повертаються
+// (брак і невідповідність опису — окрема справа, за законом). Змінилися умови — змініть і тут.
+// Ті самі умови — у налаштуваннях повернення в Merchant Center
+const RETURN_POLICY = {
+  '@type': 'MerchantReturnPolicy',
+  applicableCountry: 'UA',
+  returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted',
+};
+
+// Доставка для Google — як на сторінці «Доставка й оплата». Google приймає її лише з ціною: точною (rate)
+// або найбільшою (maxRate), у гривнях. Поки ціни немає (null) — доставки в розмітці теж немає.
+// handling — за скільки робочих днів відправляємо, transit — скільки днів посилка в дорозі
+const SHIPPING = {
+  rate: null,
+  maxRate: null,
+  handling: [1, 2],
+  transit: [1, 3],
+};
+function shippingData() {
+  const rate = SHIPPING.rate ?? SHIPPING.maxRate;
+  if (rate == null) return undefined;
+  const days = ([min, max]) => ({ '@type': 'QuantitativeValue', minValue: min, maxValue: max, unitCode: 'DAY' });
+  return {
+    '@type': 'OfferShippingDetails',
+    shippingRate: { '@type': 'MonetaryAmount', [SHIPPING.rate != null ? 'value' : 'maxValue']: rate, currency: 'UAH' },
+    shippingDestination: { '@type': 'DefinedRegion', addressCountry: 'UA' },
+    deliveryTime: { '@type': 'ShippingDeliveryTime', handlingTime: days(SHIPPING.handling), transitTime: days(SHIPPING.transit) },
+  };
+}
+
 // Розмітка товару для Google: книга з ціною, наявністю і станом
 function bookData(b) {
   const formats = { 'тверда': 'https://schema.org/Hardcover', 'суперобкладинка': 'https://schema.org/Hardcover', 'м’яка': 'https://schema.org/Paperback', "м'яка": 'https://schema.org/Paperback' };
@@ -226,9 +258,12 @@ function bookData(b) {
       availability: b.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/PreOrder',
       itemCondition: isUsed(b) ? 'https://schema.org/UsedCondition' : 'https://schema.org/NewCondition',
       seller: { '@type': 'Organization', name: NAME },
+      shippingDetails: shippingData(),
+      hasMerchantReturnPolicy: RETURN_POLICY,
     },
   };
-  return JSON.parse(JSON.stringify(data)); // прибрати порожні (undefined) поля
+  const crumbs = breadcrumbs([...catCrumbs(b.category), { name: b.title, url: bookUrl(b) }]);
+  return [JSON.parse(JSON.stringify(data)), crumbs]; // прибрати порожні (undefined) поля
 }
 
 // ---------- текстові сторінки (доставка, повернення, контакти) ----------
@@ -409,13 +444,71 @@ if (contactsPage) template = chatFromContacts(template, contactsPage.body);
 
 // ---------- збирання ----------
 const catalog = await fetchCatalog();
-// шлях категорії від верхнього рівня: ['Богослов'я', 'Етика']; захист від кола в аркуші «Категорії»
-const parentOf = new Map((catalog.categories || []).map(c => [String(c.name || '').trim(), String(c.parent || '').trim()]));
-function categoryLineage(name) {
-  const path = [];
-  for (let n = name; n && !path.includes(n); n = parentOf.get(n)) path.unshift(n);
-  return path;
+
+// ---------- Категорії: дерево й адреси /katehoriia/<адреса>/ ----------
+// Як buildCategories і адреси категорій у js/filters.js: slugify, categoryNames і categorySlugs — копії звідти,
+// міняєте там — міняйте й тут, інакше посилання на сайті й зібрані сторінки розійдуться
+const TRANSLIT = {
+  а: 'a', б: 'b', в: 'v', г: 'h', ґ: 'g', д: 'd', е: 'e', є: 'ie', ж: 'zh', з: 'z', и: 'y', і: 'i', ї: 'i', й: 'i',
+  к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts',
+  ч: 'ch', ш: 'sh', щ: 'shch', ь: '', ю: 'iu', я: 'ia', ё: 'io', ъ: '', ы: 'y', э: 'e',
+};
+const TRANSLIT_START = { є: 'ye', ї: 'yi', й: 'y', ю: 'yu', я: 'ya' };
+function slugify(name) {
+  return String(name).toLowerCase().replace(/['’ʼ`]/g, '').replace(/зг/g, 'zgh')
+    .replace(/\p{L}+/gu, word => [...word].map((c, i) => (i === 0 && TRANSLIT_START[c]) || (TRANSLIT[c] ?? c)).join(''))
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
+function categoryNames(list, bookList) {
+  const names = new Set();
+  for (const c of list || []) {
+    const name = String(c.name || '').trim();
+    if (name) names.add(name);
+  }
+  for (const b of bookList || []) if (b.category) names.add(b.category);
+  return [...names];
+}
+function categorySlugs(names) {
+  const slugs = new Map(), used = new Set();
+  for (const name of names) {
+    const base = slugify(name) || 'katehoriia';
+    let slug = base;
+    for (let i = 2; used.has(slug); i++) slug = `${base}-${i}`;
+    used.add(slug);
+    slugs.set(name, slug);
+  }
+  return slugs;
+}
+// вузол: назва, батьківська, дочірні (у порядку аркуша), шлях угору до верхнього рівня, адреса
+const sheetParent = new Map();
+for (const c of catalog.categories || []) {
+  const name = String(c.name || '').trim();
+  if (name && !sheetParent.has(name)) sheetParent.set(name, String(c.parent || '').trim());
+}
+const catSlugs = categorySlugs(categoryNames(catalog.categories, catalog.books));
+const cats = new Map([...catSlugs].map(([name, slug]) => [name, { name, slug, parent: sheetParent.get(name) || '', children: [], lineage: [] }]));
+// батьківської немає на аркуші — категорія верхнього рівня
+for (const n of cats.values()) if (n.parent === n.name || !cats.has(n.parent)) n.parent = '';
+for (const n of cats.values()) if (n.parent) cats.get(n.parent).children.push(n);
+// захист від кола, якщо в аркуші дві категорії вказали одна на одну
+for (const n of cats.values()) {
+  for (let p = n; p && !n.lineage.includes(p.name); p = cats.get(p.parent)) n.lineage.push(p.name);
+}
+// шлях категорії від верхнього рівня: ['Християнські книги', 'Етика']
+const categoryLineage = name => cats.has(name) ? [...cats.get(name).lineage].reverse() : [];
+const catHref = (name, n = 1) => `/katehoriia/${cats.get(name).slug}/` + (n > 1 ? `${n}/` : '');
+// назва сторінки категорії — як catTitle у js/collections.js
+const catTitle = name => /книг/i.test(name) ? `${name} — купити` : `${name} — купити книги`;
+
+// «Хлібні крихти» для Google: магазин › … › сторінка. items — [{ name, url }]
+const breadcrumbs = items => ({
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [{ name: NAME, url: SITE + '/' }, ...items]
+    .map((it, i) => ({ '@type': 'ListItem', position: i + 1, name: it.name, item: it.url })),
+});
+const catCrumbs = name => categoryLineage(name).map(c => ({ name: c, url: SITE + catHref(c) }));
 const seen = new Set();
 const books = catalog.books.filter(b => {
   // номер книги стає частиною адреси — дозволяємо лише безпечні символи
@@ -453,6 +546,7 @@ const store = {
   description: DESCRIPTION,
   areaServed: 'UA',
   currenciesAccepted: 'UAH',
+  hasMerchantReturnPolicy: RETURN_POLICY,
 };
 
 // ---------- перші книги каталогу прямо в HTML головної ----------
@@ -526,23 +620,24 @@ const total = sorted.length;
 const pageCount = Math.max(1, Math.ceil(total / PAGE));
 const pagePath = n => n > 1 ? `/storinka/${n}/` : '/';
 const ARROW = dir => `<svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="${dir < 0 ? 'm15 6-6 6 6 6' : 'm9 6 6 6-6 6'}" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-function pagerHtml(cur) {
-  if (pageCount < 2) return '';
-  const keep = new Set([1, pageCount, cur - 1, cur, cur + 1]);
+// count і path — для сторінок категорії (у неї свої сторінки й адреси)
+function pagerHtml(cur, count = pageCount, path = pagePath) {
+  if (count < 2) return '';
+  const keep = new Set([1, count, cur - 1, cur, cur + 1]);
   const items = [];
-  for (let n = 1; n <= pageCount; n++) {
+  for (let n = 1; n <= count; n++) {
     if (keep.has(n)) items.push(n);
     else if (items.at(-1) !== '…') items.push('…');
   }
   const step = (n, dir) => {
     const inner = dir < 0 ? `${ARROW(dir)}<span class="label">Попередня</span>` : `<span class="label">Наступна</span>${ARROW(dir)}`;
-    return n < 1 || n > pageCount
+    return n < 1 || n > count
       ? `<span class="step" aria-disabled="true">${inner}</span>`
-      : `<a class="step" href="${pagePath(n)}" rel="${dir < 0 ? 'prev' : 'next'}" aria-label="${dir < 0 ? 'Попередня' : 'Наступна'} сторінка">${inner}</a>`;
+      : `<a class="step" href="${path(n)}" rel="${dir < 0 ? 'prev' : 'next'}" aria-label="${dir < 0 ? 'Попередня' : 'Наступна'} сторінка">${inner}</a>`;
   };
   return step(cur - 1, -1) + items.map(n => n === '…' ? '<span class="gap">…</span>'
     : n === cur ? `<span class="num" aria-current="page">${n}</span>`
-    : `<a class="num" href="${pagePath(n)}" aria-label="Сторінка ${n}">${n}</a>`).join('') + step(cur + 1, 1);
+    : `<a class="num" href="${path(n)}" aria-label="Сторінка ${n}">${n}</a>`).join('') + step(cur + 1, 1);
 }
 const countText = n => `${n} ${plural(n, 'книга', 'книги', 'книг')}`;
 
@@ -633,7 +728,7 @@ for (const c of collections) {
       // прев'ю — обкладинка першої книги з фото; немає — загальна картинка магазину
       image: cover && photoUrl(cover.photos[0], 1200),
       imageAlt: c.name,
-      data: {
+      data: [{
         '@context': 'https://schema.org',
         '@type': 'CollectionPage',
         name: c.name,
@@ -645,10 +740,79 @@ for (const c of collections) {
           numberOfItems: n,
           itemListElement: c.list.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: bookUrl(b), name: b.title })),
         },
-      },
+      }, breadcrumbs([{ name: c.name, url }])],
     }),
     ownH1: true,
   }));
+}
+
+// ---------- Сторінки категорій: /katehoriia/<адреса>/, /katehoriia/<адреса>/2/… ----------
+// Каталог лише з книгами категорії (разом з усіма вкладеними), «Нові надходження», по PAGE на сторінці.
+// Згори — табличка зі шляхом угору й назвою, під нею підкатегорії рядком.
+// Розмітка — як у catIntro (js/collections.js), лише без стрілок гортання: їх додає скрипт
+const catBooks = new Map([...cats.keys()].map(name => [name, []]));
+for (const b of sorted) {
+  if (b.category) for (const name of cats.get(b.category).lineage) catBooks.get(name).push(b);
+}
+function catIntroHtml(node) {
+  const up = ['', ...categoryLineage(node.name).slice(0, -1)];
+  const path = up.map(name => `<a href="${name ? catHref(name) : '/'}">${esc(name || 'Усі книги')}</a><span class="sep">›</span>`).join('');
+  const subs = node.children.filter(s => catBooks.get(s.name).length);
+  return `<div class="coll-intro" id="collIntro"><div class="cat-head"><section class="cat-label glass">` +
+    `<nav class="cat-path" aria-label="Розділи вище">${path}</nav>` +
+    `<div class="cat-title"><h1>${esc(node.name)}</h1><span class="cat-count">${countText(catBooks.get(node.name).length)}</span></div></section>` +
+    (subs.length ? `<ul class="cat-strip" aria-label="Підкатегорії">${subs.map(s =>
+      `<li><a class="glass" href="${catHref(s.name)}">${esc(s.name)}<span class="n">${catBooks.get(s.name).length}</span></a></li>`).join('')}</ul>` : '') +
+    '</div></div>';
+}
+const categoryPages = [];
+for (const node of cats.values()) {
+  const list = catBooks.get(node.name);
+  if (!list.length) continue; // порожніх категорій сайт не показує
+  const count = Math.ceil(list.length / PAGE);
+  const path = n => catHref(node.name, n);
+  for (let n = 1; n <= count; n++) {
+    const rows = list.slice((n - 1) * PAGE, n * PAGE);
+    const html = template
+      .replace('<div class="coll-intro" id="collIntro" hidden></div>', catIntroHtml(node))
+      .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
+      .replace('<div class="count" id="count">&nbsp;</div>', `<div class="count" id="count">${countText(list.length)}</div>`)
+      .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) =>
+        count > 1 ? `<nav class="pager" id="pager"${attrs}>${pagerHtml(n, count, path)}</nav>` : all);
+    if (!html.includes('<div class="coll-intro" id="collIntro">')) throw new Error('Не знайшов у index.html місце для заголовка категорії (id="collIntro")');
+    const url = SITE + path(n);
+    const about = `${node.name}: ${countText(list.length)} з доставкою по Україні — ` +
+      rows.slice(0, 3).map(b => `«${b.title}»`).join(', ') + (list.length > 3 ? '…' : '.');
+    const description = clip(n > 1 ? `Сторінка ${n} з ${count}. ${about}` : about);
+    const cover = rows.find(b => b.photos?.length);
+    const dir = join(OUT, ...path(n).split('/').filter(Boolean));
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'index.html'), page({
+      html,
+      title: n > 1 ? `${node.name} — сторінка ${n} | ${NAME}` : `${catTitle(node.name)} | ${NAME}`,
+      description,
+      head: seo({
+        url, title: n > 1 ? `${node.name} — сторінка ${n}` : node.name, description,
+        image: cover && photoUrl(cover.photos[0], 1200),
+        imageAlt: node.name,
+        data: [{
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: node.name,
+          url,
+          description,
+          isPartOf: { '@type': 'WebSite', name: NAME, url: SITE + '/' },
+          mainEntity: {
+            '@type': 'ItemList',
+            numberOfItems: list.length,
+            itemListElement: rows.map((b, i) => ({ '@type': 'ListItem', position: (n - 1) * PAGE + i + 1, url: bookUrl(b), name: b.title })),
+          },
+        }, breadcrumbs(catCrumbs(node.name))],
+      }),
+      ownH1: true,
+    }));
+    categoryPages.push(url);
+  }
 }
 
 // ---------- текстові сторінки: запис (тексти зібрано вище, перед збиранням) ----------
@@ -659,7 +823,10 @@ for (const p of textPages) {
     description: p.description,
     head: seo({
       url, title: p.h1, description: p.description,
-      data: { '@context': 'https://schema.org', '@type': 'WebPage', name: p.h1, url, isPartOf: { '@type': 'WebSite', name: NAME, url: SITE + '/' } },
+      data: [
+        { '@context': 'https://schema.org', '@type': 'WebPage', name: p.h1, url, isPartOf: { '@type': 'WebSite', name: NAME, url: SITE + '/' } },
+        breadcrumbs([{ name: p.h1, url }]),
+      ],
     }),
     book: `${BACK}\n  <article class="text-page glass">\n${p.body}\n  </article>`,
     bodyData: 'data-page',
@@ -704,6 +871,7 @@ writeFileSync(join(OUT, 'sitemap.xml'), [
   `  <url><loc>${SITE}/</loc></url>`,
   ...catalogPages.map(url => `  <url><loc>${url}</loc></url>`),
   ...collections.map(c => `  <url><loc>${collUrl(c)}</loc></url>`),
+  ...categoryPages.map(url => `  <url><loc>${url}</loc></url>`),
   ...textPages.map(p => `  <url><loc>${SITE}/${p.slug}/</loc></url>`),
   ...books.map(b => `  <url><loc>${esc(bookUrl(b))}</loc></url>`),
   '</urlset>',
@@ -761,5 +929,8 @@ writeFileSync(join(OUT, 'products.xml'), [
 
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
 
-console.log(`Готово: ${SITE} — головна, добірок ${collections.length} і ${books.length} сторінок книг у _site/; ` +
+if (SHIPPING.rate == null && SHIPPING.maxRate == null) {
+  console.warn('::warning::У розмітці книг немає доставки: Google приймає її лише з ціною — заповніть SHIPPING у scripts/build.mjs');
+}
+console.log(`Готово: ${SITE} — головна, добірок ${collections.length}, сторінок категорій ${categoryPages.length} і ${books.length} сторінок книг у _site/; ` +
   `у файлі товарів для Google ${products.length} (решті бракує фото)`);
