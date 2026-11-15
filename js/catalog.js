@@ -233,8 +233,9 @@ function applyFilter(keepPage) {
   const sorters = {
     // як розставили в аркуші «Добірки»
     'collection': (a, b) => collectionRank(a) - collectionRank(b),
-    // більший № у таблиці — пізніше додана книга
-    'newest': (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
+    // спершу книги з фото, далі — без; серед них більший № у таблиці — пізніше додана книга.
+    // Так само сортує збирач (sorted у scripts/build.mjs) — міняєте тут, міняйте й там
+    'newest': (a, b) => hasPhoto(b) - hasPhoto(a) || (Number(b.id) || 0) - (Number(a.id) || 0),
     'title': (a, b) => collator.compare(a.title, b.title),
     'author': (a, b) => collator.compare(a.author || '￿', b.author || '￿'),
     // за ціною продажу (акційною, якщо є); однакова ціна — новіші вище
@@ -314,6 +315,8 @@ function bookRow(b, grid = view === 'grid') {
   li.classList.toggle('in-cart', !!cart[b.id]);
   return li;
 }
+
+const hasPhoto = b => b.photos?.length ? 1 : 0;
 
 // Знижка у відсотках; 0 — книга не акційна. Скрипт передає price — ціну продажу (акційну, якщо є)
 // і oldPrice — звичайну ціну, лише коли акційна справді менша

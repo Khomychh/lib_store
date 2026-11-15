@@ -612,10 +612,12 @@ function staticRow(b) {
     `<div class="pricebox">${priceLines(b)}</div><div class="ctrl"></div></li>`;
 }
 // Сторінки каталогу: головна — перша, далі /storinka/2/, /storinka/3/… по 50 книг, з перемикачем під ними.
-// Порядок «Нові надходження», як у скрипта: більший № — новіша книга. Беремо весь каталог, а не лише книги зі сторінками.
+// Порядок «Нові надходження», як у скрипта (sorters.newest у js/catalog.js): спершу книги з фото, серед них і серед решти
+// більший № — новіша книга. Беремо весь каталог, а не лише книги зі сторінками.
 // Номери в перемикачі й розмітка — як у pagerItems/renderPager (js/catalog.js)
 const PAGE = 50;
-const sorted = [...catalog.books].sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+const hasPhoto = b => b.photos?.length ? 1 : 0;
+const sorted = [...catalog.books].sort((a, b) => hasPhoto(b) - hasPhoto(a) || (Number(b.id) || 0) - (Number(a.id) || 0));
 const total = sorted.length;
 const pageCount = Math.max(1, Math.ceil(total / PAGE));
 const pagePath = n => n > 1 ? `/storinka/${n}/` : '/';
