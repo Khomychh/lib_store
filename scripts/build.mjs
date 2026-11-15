@@ -210,7 +210,9 @@ const RETURN_POLICY = {
 };
 
 // Доставка для Google — як на сторінці «Доставка й оплата». Google приймає її лише з ціною: точною (rate)
-// або найбільшою (maxRate), у гривнях. Поки ціни немає (null) — доставки в розмітці теж немає.
+// або найбільшою (maxRate), у гривнях. Зараз доставка — за тарифами перевізника (ціна залежить від перевізника
+// й відстані й змінюється), тож ціни немає (null) і доставки в розмітці свідомо немає: вона необов'язкова.
+// З'явиться фіксована ціна (напр., безкоштовна доставка) — впишіть її сюди.
 // handling — за скільки робочих днів відправляємо, transit — скільки днів посилка в дорозі
 const SHIPPING = {
   rate: null,
@@ -931,8 +933,5 @@ writeFileSync(join(OUT, 'products.xml'), [
 
 writeFileSync(join(OUT, 'robots.txt'), `User-agent: *\nAllow: /\n\nSitemap: ${SITE}/sitemap.xml\n`);
 
-if (SHIPPING.rate == null && SHIPPING.maxRate == null) {
-  console.warn('::warning::У розмітці книг немає доставки: Google приймає її лише з ціною — заповніть SHIPPING у scripts/build.mjs');
-}
 console.log(`Готово: ${SITE} — головна, добірок ${collections.length}, сторінок категорій ${categoryPages.length} і ${books.length} сторінок книг у _site/; ` +
   `у файлі товарів для Google ${products.length} (решті бракує фото)`);
