@@ -679,7 +679,6 @@ for (let n = 1; n <= pageCount; n++) {
   const rows = sorted.slice((n - 1) * PAGE, n * PAGE);
   let html = template
     .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
-    .replace('<div class="count" id="count">&nbsp;</div>', `<div class="count" id="count">${countText(total)}</div>`)
     .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) => `<nav class="pager" id="pager"${attrs}>${pagerHtml(n)}</nav>`);
   if (!html.includes('<ul class="list grid" id="list">') || !html.includes('<nav class="pager" id="pager"')) {
     throw new Error('Не знайшов у index.html місце для каталогу чи перемикача сторінок (id="list", id="pager")');
@@ -714,7 +713,6 @@ for (const c of collections) {
   const html = template
     .replace('<div class="coll-intro" id="collIntro" hidden></div>', collIntroHtml(c))
     .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${c.list.map(staticRow).join('\n')}\n  </ul>`)
-    .replace('<div class="count" id="count">&nbsp;</div>', `<div class="count" id="count">${countText(n)}</div>`)
     // сортування «Як у добірці» тут вибране одразу — так, як покаже й скрипт
     .replace(/<li role="option" data-value="collection" hidden>(.*?)<\/li>/, '<li role="option" data-value="collection" aria-selected="true">$1</li>')
     .replace('<li role="option" data-value="newest" aria-selected="true">', '<li role="option" data-value="newest">')
@@ -764,9 +762,9 @@ function catIntroHtml(node) {
   const subs = node.children.filter(s => catBooks.get(s.name).length);
   return `<div class="coll-intro" id="collIntro"><div class="cat-head"><section class="cat-label glass">` +
     `<nav class="cat-path" aria-label="Розділи вище">${path}</nav>` +
-    `<div class="cat-title"><h1>${esc(node.name)}</h1><span class="cat-count">${countText(catBooks.get(node.name).length)}</span></div></section>` +
+    `<h1>${esc(node.name)}</h1></section>` +
     (subs.length ? `<ul class="cat-strip" aria-label="Підкатегорії">${subs.map(s =>
-      `<li><a class="glass" href="${catHref(s.name)}">${esc(s.name)}<span class="n">${catBooks.get(s.name).length}</span></a></li>`).join('')}</ul>` : '') +
+      `<li><a class="glass" href="${catHref(s.name)}">${esc(s.name)}</a></li>`).join('')}</ul>` : '') +
     '</div></div>';
 }
 const categoryPages = [];
@@ -780,7 +778,6 @@ for (const node of cats.values()) {
     const html = template
       .replace('<div class="coll-intro" id="collIntro" hidden></div>', catIntroHtml(node))
       .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
-      .replace('<div class="count" id="count">&nbsp;</div>', `<div class="count" id="count">${countText(list.length)}</div>`)
       .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) =>
         count > 1 ? `<nav class="pager" id="pager"${attrs}>${pagerHtml(n, count, path)}</nav>` : all);
     if (!html.includes('<div class="coll-intro" id="collIntro">')) throw new Error('Не знайшов у index.html місце для заголовка категорії (id="collIntro")');

@@ -69,12 +69,7 @@ function renderIntro() {
   document.title = c ? `${c.name} | ${STORE_NAME}` : node ? `${catTitle(node.name)} | ${STORE_NAME}` : HOME_TITLE;
   box.hidden = !c && !node;
   if (box.hidden) { box.textContent = ''; introFor = null; return; }
-  // скільки книг показано (з пошуком і фільтрами) — у табличці категорії, замість окремого лічильника
-  const shown = () => {
-    const n = box.querySelector('.cat-count');
-    if (n) n.textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
-  };
-  if (introFor === (c || node)) { shown(); return; }
+  if (introFor === (c || node)) return;
   introFor = c || node;
   // на головній <h1> — назва магазину; на сторінці добірки чи категорії (збирач робить назву магазину посиланням) — її назва
   const heading = document.querySelector('h1.brand') ? 'h2' : 'h1';
@@ -91,11 +86,10 @@ function renderIntro() {
     box.replaceChildren(back, head);
   } else {
     box.replaceChildren(catIntro(node, heading));
-    shown();
   }
 }
 
-// Категорія — один ряд: невелика табличка (шлях угору «Усі книги › Християнські книги ›», назва й кількість книг)
+// Категорія — один ряд: невелика табличка (шлях угору «Усі книги › Християнські книги ›» і назва)
 // і праворуч від неї підкатегорії, що гортаються вбік (на ПК — ще й стрілками). На телефоні підкатегорії — під табличкою
 function catIntro(node, heading) {
   const go = (a, name) => {
@@ -108,10 +102,8 @@ function catIntro(node, heading) {
   for (const name of ['', ...[...node.lineage].slice(1).reverse()]) {
     path.append(go(el('a', null, name || 'Усі книги'), name), el('span', 'sep', '›'));
   }
-  const title = el('div', 'cat-title');
-  title.append(el(heading, null, node.name), el('span', 'cat-count'));
   const label = el('section', 'cat-label glass');
-  label.append(path, title);
+  label.append(path, el(heading, null, node.name));
   const head = el('div', 'cat-head');
   head.append(label);
 
@@ -121,7 +113,6 @@ function catIntro(node, heading) {
   strip.setAttribute('aria-label', 'Підкатегорії');
   for (const s of subs) {
     const a = go(el('a', 'glass', s.name), s.name);
-    a.append(el('span', 'n', String(s.count)));
     const li = el('li');
     li.append(a);
     strip.append(li);

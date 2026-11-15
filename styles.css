@@ -275,7 +275,7 @@ header { padding: 56px 16px 32px; }
 .sort-menu .tick { width: 16px; flex: none; visibility: hidden; }
 .sort-menu li[aria-selected="true"] .tick { visibility: visible; }
 
-/* скільки книг — скляна табличка над каталогом; під полицями добірок вона ж — заголовок усього каталогу */
+/* скільки книг знайдено (лише під час пошуку чи фільтрів) — скляна табличка над каталогом */
 .count {
   display: inline-block;
   padding: 7px 16px 8px;
@@ -284,6 +284,8 @@ header { padding: 56px 16px 32px; }
   font: 600 16px/1.3 Literata, Georgia, serif;
   font-variant-numeric: lining-nums;
 }
+/* ні лічильника, ні фільтрів — рядок порожній, лишається лише відступ до книг */
+.summary:not(:has(.picked, .count:not([hidden]))) { margin: 0 0 22px; }
 .shelves:not([hidden]) ~ .summary { margin-top: 40px; }
 
 /* Список книг: одна скляна смуга (вітрина — нижче, без суцільного скла) */
@@ -845,17 +847,12 @@ header { padding: 56px 16px 32px; }
 
 /* Категорія: без суцільного скла — лише табличка під розмір назви (шлях угору й назва)
    і підкатегорії одним рядком скляних кнопок, як «‹ Усі книги», що гортається вбік */
-/* один ряд: табличка, підкатегорії, стрілки; кількість книг — у табличці, окремий лічильник під нею не потрібен */
+/* один ряд: табличка, підкатегорії, стрілки */
 .cat-head { display: flex; align-items: center; gap: 14px; }
 .cat-label {
   flex: none; max-width: min(46%, 520px); padding: 9px 20px 11px;
   border-radius: 16px; box-shadow: var(--shadow);
 }
-.cat-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
-.cat-count { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-#collIntro:has(.cat-label) ~ .summary .count { display: none; }
-#collIntro:has(.cat-label) ~ .summary { margin: 0 0 22px; }
-#collIntro:has(.cat-label) ~ .summary:has(.picked) { margin: 14px 0 20px; }
 .cat-path { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; font-size: 13px; color: var(--muted); }
 .cat-path a { color: inherit; text-decoration: none; font-weight: 500; border-radius: 4px; }
 .cat-path a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
@@ -902,7 +899,6 @@ header { padding: 56px 16px 32px; }
 .cat-strip a.glass { background: var(--glass-strong); }
 .cat-strip a.glass:hover { background: var(--menu); }
 .cat-strip a:focus-visible { outline-offset: -2px; }
-.cat-strip .n { font-size: 12.5px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 @media (hover: none) { .cat-nav { display: none; } }
 /* вузько — підкатегорії під табличкою, рядок від краю до краю екрана */
 @media (max-width: 760px) {
@@ -910,7 +906,6 @@ header { padding: 56px 16px 32px; }
   .cat-label { max-width: 100%; padding: 8px 16px 10px; }
   .cat-strip { flex-basis: 100%; margin: 0 -16px; padding: 6px 16px 10px; scroll-padding: 0 16px; }
   .cat-nav { display: none; }
-  #collIntro:has(.cat-label) ~ .summary { margin-bottom: 14px; }
 }
 @media (max-width: 600px) {
   .coll-head { padding: 22px 20px 20px; }

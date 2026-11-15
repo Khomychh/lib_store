@@ -120,7 +120,7 @@ function goPage(n) {
   render();
   syncUrl(true);
   // до початку каталогу, якщо ми нижче (панель пошуку прилипає згори — лишаємо їй місце)
-  const top = $('count').getBoundingClientRect().top + scrollY - 90;
+  const top = document.querySelector('main > .summary').getBoundingClientRect().top + scrollY - 90;
   if (scrollY > top) scrollTo({ top, behavior: 'instant' });
 }
 
@@ -264,7 +264,11 @@ function render() {
   renderIntro();
   renderShelves();
 
-  $('count').textContent = `${filtered.length} ${plural(filtered.length, 'книга', 'книги', 'книг')}`;
+  // Кількість — лише як відповідь на пошук чи фільтр (категорія з власним заголовком — не фільтр):
+  // «Знайдено 12 книг». Просто «1044 книги» покупцеві ні до чого; нічого не знайшли — про це скаже showState нижче
+  const narrowed = searchWords().length > 0 || FACETS.some(f => picked[f.key].size > 0) || cat === NONE || (!!cat && !!coll);
+  $('count').hidden = !narrowed || !filtered.length;
+  $('count').textContent = narrowed ? `Знайдено ${filtered.length} ${plural(filtered.length, 'книгу', 'книги', 'книг')}` : '';
   showState(filtered.length ? '' : coll
     ? 'У цій добірці нічого не знайдено. Спробуйте інший запит або приберіть фільтри.'
     : cat
