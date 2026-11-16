@@ -291,13 +291,17 @@ let catBySlug = new Map();
 const catPath = (name, n = 1) => `/katehoriia/${cats.get(name).slug}/` + (n > 1 ? `${n}/` : '');
 const catFromPath = () => {
   const m = location.pathname.match(CAT_PATH);
-  return m ? catBySlug.get(decodeURIComponent(m[1])) || '' : '';
+  return m ? catBySlug.get(safeDecode(m[1])) || '' : '';
 };
 // Категорія з адреси: зі шляху (/katehoriia/…), а «Без категорії» й категорія в добірці — з #cat=…
+// Невідома категорія (помилка в адресі, категорію прибрали) — усі книги
 function catFromUrl() {
   if (CAT_PATH.test(location.pathname)) return catFromPath();
   const m = location.hash.match(/^#cat=(.+)$/);
-  return m ? (m[1] === 'none' ? NONE : decodeURIComponent(m[1])) : '';
+  if (!m) return '';
+  if (m[1] === 'none') return NONE;
+  const name = safeDecode(m[1]);
+  return cats.has(name) ? name : '';
 }
 
 function buildCategories(list) {
@@ -334,10 +338,13 @@ function inCategory(b) {
 
 const hasBooks = n => n.count > 0;
 
-// адресу (/katehoriia/… чи #cat=…) міняє applyFilter → syncUrl
+// Вибір категорії — новий запис в історії браузера (як добірка й сторінки каталогу): «Назад» повертає
+// до попередньої категорії чи всіх книг, а не виводить із сайту. Адреса — /katehoriia/… чи #cat=…
 function selectCat(name) {
   cat = name;
-  applyFilter();
+  pageNo = 1;
+  applyFilter(true);
+  syncUrl(true);
   // у меню розгортається гілка нової категорії — перебудовуємо його й лишаємо фокус на вибраній
   if (!$('filterMenu').hidden) {
     buildFilterMenu();

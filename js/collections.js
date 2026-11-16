@@ -14,14 +14,19 @@ const COLL_PATH = /^\/dobirka\/([^/]+)\/?$/;
 const collPath = slug => `/dobirka/${encodeURIComponent(slug)}/`;
 const collFromPath = () => {
   const m = location.pathname.match(COLL_PATH);
-  return m ? decodeURIComponent(m[1]) : '';
+  return m ? safeDecode(m[1]) : '';
 };
 const curColl = () => collBySlug.get(coll);
 
 // назва вкладки: на сторінці добірки чи категорії — її назва; повертаючись, — назва головної
 // (відкрили одразу сторінку добірки чи категорії — назви головної не знаємо, тоді просто назва магазину)
 const STORE_NAME = document.querySelector('.brand').textContent.trim();
-const HOME_TITLE = COLL_PATH.test(location.pathname) || CAT_PATH.test(location.pathname) ? STORE_NAME : document.title;
+// На /storinka/2/ збирач дописує до назви « — сторінка 2» — прибираємо, номер сторінки додає renderIntro
+const PAGE_TITLE = / — сторінка \d+$/;
+const HOME_TITLE = COLL_PATH.test(location.pathname) || CAT_PATH.test(location.pathname)
+  ? STORE_NAME : document.title.replace(PAGE_TITLE, '');
+// сторінка каталогу без категорії й добірки: «… — сторінка 2», як у збирача (scripts/build.mjs)
+const homeTitle = () => HOME_TITLE + (pageNo > 1 && onCatalogPath() ? ` — сторінка ${pageNo}` : '');
 // назва сторінки категорії — як у збирача (catTitle у scripts/build.mjs)
 const catTitle = name => /книг/i.test(name) ? `${name} — купити` : `${name} — купити книги`;
 
@@ -66,7 +71,7 @@ function renderIntro() {
   const box = $('collIntro');
   const c = curColl();
   const node = !c && cat && cat !== NONE ? cats.get(cat) : null;
-  document.title = c ? `${c.name} | ${STORE_NAME}` : node ? `${catTitle(node.name)} | ${STORE_NAME}` : HOME_TITLE;
+  document.title = c ? `${c.name} | ${STORE_NAME}` : node ? `${catTitle(node.name)} | ${STORE_NAME}` : homeTitle();
   box.hidden = !c && !node;
   if (box.hidden) { box.textContent = ''; introFor = null; return; }
   if (introFor === (c || node)) return;

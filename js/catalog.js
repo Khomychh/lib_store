@@ -10,6 +10,8 @@ const BOOKS_KEY = 'lib_store_books';
 
 const $ = id => document.getElementById(id);
 const money = n => n.toLocaleString('uk-UA') + ' грн';
+// шматок адреси, вписаний руками, може бути зіпсований («%» без коду) — тоді лишаємо як є, а не падаємо
+const safeDecode = s => { try { return decodeURIComponent(s); } catch { return s; } };
 
 let books = [];
 let byId = new Map();

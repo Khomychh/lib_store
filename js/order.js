@@ -71,6 +71,9 @@ function combo(input, { minChars, search, onPick }) {
     const q = input.value.trim();
     const my = ++seq;
     if (!npOnline || !METHODS[method()].np || q.length < minChars) return close();
+    // старий список прибираємо: інакше Enter під час пошуку вибрав би пункт з попереднього запиту
+    items = [];
+    active = -1;
     message('Шукаємо…');
     try {
       const found = await search(q);
@@ -174,15 +177,19 @@ syncMethod();
 
 let lastMethod = method();
 form.addEventListener('change', e => {
-  if (e.target.name === 'carrier' || e.target.name === 'npType') {
+  const methodChanged = e.target.name === 'carrier' || e.target.name === 'npType';
+  if (methodChanged) {
     syncMethod();
     // відділення і поштомат — різні списки, а місто без вибору зі списку Новій пошті не підходить
     if (!METHODS[lastMethod].np && METHODS[method()].np) delete F.city.dataset.ref;
     lastMethod = method();
     resetWarehouse();
-    for (const input of Object.keys(RULES).map(n => F[n])) if (input.closest('[hidden]')) clearError(input);
   }
   if (['carrier', 'npType', 'payment', 'otherRecipient'].includes(e.target.name)) updateDelivery();
+  // після updateDelivery: саме він ховає поля, і помилки знімаємо з тих, що сховались щойно
+  if (methodChanged || e.target.name === 'otherRecipient') {
+    for (const input of Object.keys(RULES).map(n => F[n])) if (input.closest('[hidden]')) clearError(input);
+  }
 });
 
 // Валідація: кожне правило повертає текст помилки або ''
@@ -322,17 +329,23 @@ async function submitOrder(e) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
+    // текст від сервера («доступно лише 1 шт.») показуємо покупцеві; технічні помилки браузера — ні
+    if (!data.ok) throw Object.assign(new Error(data.error), { fromServer: true });
 
     cart = {};
     saveCart();
     updateCartBar();
+    // кнопки кошика є ще на полиці добірки й на сторінці книги — перемальовуємо й їх
+    shelvesFor = null;
     render();
+    drawPageBook();
     $('doneText').textContent = `Ваше замовлення на суму ${money(data.total)} прийнято. Ми зв'яжемося з вами найближчим часом.`;
     $('orderBody').hidden = true;
     $('orderDone').hidden = false;
   } catch (err) {
-    $('formMsg').textContent = err.message || 'Не вдалося надіслати замовлення. Спробуйте ще раз.';
+    if (!err.fromServer) console.error(err);
+    $('formMsg').textContent = (err.fromServer && err.message) ||
+      'Не вдалося надіслати замовлення. Перевірте інтернет і спробуйте ще раз.';
   } finally {
     btn.disabled = false; btn.textContent = 'Надіслати замовлення';
   }

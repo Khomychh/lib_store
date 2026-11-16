@@ -118,16 +118,17 @@ function seo({ url, title, description, image, imageAlt, data, noindex }) {
 // nested — сторінка глибше кореня без власного заголовка (сторінки каталогу 2, 3…): лише <base>, назва магазину лишається <h1>;
 // ownH1 — сторінка глибше кореня зі своїм <h1> (добірка): назва магазину стає посиланням на головну
 function page({ html: base = template, title, description, head, book, bodyData, nested, ownH1 }) {
+  // Вставки — функціями, а не рядками: у рядку-заміні «$&» чи «$'» з назви або опису книги вставили б шматок шаблону
   let html = base
-    .replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
-    .replace(/<meta name="description" content="[^"]*">/, `<meta name="description" content="${esc(description)}">`)
-    .replace(/<!-- seo:[\s\S]*?-->/, head);
+    .replace(/<title>[\s\S]*?<\/title>/, () => `<title>${esc(title)}</title>`)
+    .replace(/<meta name="description" content="[^"]*">/, () => `<meta name="description" content="${esc(description)}">`)
+    .replace(/<!-- seo:[\s\S]*?-->/, () => head);
   // сторінки глибше кореня: відносні адреси (фото, іконки, стилі) мають іти від кореня сайту
   if (book || nested || ownH1) html = html.replace('<meta charset="utf-8">', '<meta charset="utf-8">\n<base href="/">');
   // головний заголовок сторінки — назва книги (добірки), а назва магазину стає посиланням на головну
   if (book || ownH1) html = html.replace(BRAND, '$1<a class="brand" href="/">$2</a>');
-  if (book) html = html.replace(/<!-- book:[\s\S]*?-->/, book);
-  if (bodyData) html = html.replace('<body>', `<body ${bodyData}>`);
+  if (book) html = html.replace(/<!-- book:[\s\S]*?-->/, () => book);
+  if (bodyData) html = html.replace('<body>', () => `<body ${bodyData}>`);
   return html;
 }
 
@@ -678,14 +679,14 @@ const catalogPages = [];
 for (let n = 1; n <= pageCount; n++) {
   const rows = sorted.slice((n - 1) * PAGE, n * PAGE);
   let html = template
-    .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
+    .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
     .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) => `<nav class="pager" id="pager"${attrs}>${pagerHtml(n)}</nav>`);
   if (!html.includes('<ul class="list grid" id="list">') || !html.includes('<nav class="pager" id="pager"')) {
     throw new Error('Не знайшов у index.html місце для каталогу чи перемикача сторінок (id="list", id="pager")');
   }
   if (n === 1 && collections.length) {
     html = html.replace('<div class="shelves" id="shelves" hidden></div>',
-      `<div class="shelves" id="shelves">${collections.slice(0, SHELVES).map(shelfHtml).join('\n')}</div>`);
+      () => `<div class="shelves" id="shelves">${collections.slice(0, SHELVES).map(shelfHtml).join('\n')}</div>`);
     if (!html.includes('<div class="shelves" id="shelves">')) throw new Error('Не знайшов у index.html місце для полиць добірок (id="shelves")');
   }
   const url = SITE + pagePath(n);
@@ -711,8 +712,8 @@ for (const c of collections) {
   const description = clip(descParas(c).join(' ') ||
     `Добірка «${c.name}»: ${countText(n)} — ${c.list.slice(0, 3).map(b => `«${b.title}»`).join(', ')}${n > 3 ? '…' : '.'}`);
   const html = template
-    .replace('<div class="coll-intro" id="collIntro" hidden></div>', collIntroHtml(c))
-    .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${c.list.map(staticRow).join('\n')}\n  </ul>`)
+    .replace('<div class="coll-intro" id="collIntro" hidden></div>', () => collIntroHtml(c))
+    .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${c.list.map(staticRow).join('\n')}\n  </ul>`)
     // сортування «Як у добірці» тут вибране одразу — так, як покаже й скрипт
     .replace(/<li role="option" data-value="collection" hidden>(.*?)<\/li>/, '<li role="option" data-value="collection" aria-selected="true">$1</li>')
     .replace('<li role="option" data-value="newest" aria-selected="true">', '<li role="option" data-value="newest">')
@@ -776,8 +777,8 @@ for (const node of cats.values()) {
   for (let n = 1; n <= count; n++) {
     const rows = list.slice((n - 1) * PAGE, n * PAGE);
     const html = template
-      .replace('<div class="coll-intro" id="collIntro" hidden></div>', catIntroHtml(node))
-      .replace('<ul class="list" id="list"></ul>', `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
+      .replace('<div class="coll-intro" id="collIntro" hidden></div>', () => catIntroHtml(node))
+      .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
       .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) =>
         count > 1 ? `<nav class="pager" id="pager"${attrs}>${pagerHtml(n, count, path)}</nav>` : all);
     if (!html.includes('<div class="coll-intro" id="collIntro">')) throw new Error('Не знайшов у index.html місце для заголовка категорії (id="collIntro")');

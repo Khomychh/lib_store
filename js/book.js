@@ -27,8 +27,9 @@ function openBook(b) {
     a.onclick = e => {
       if (document.body.hasAttribute('data-page')) return;
       e.preventDefault();
-      selectCat(name);
+      // спершу закриваємо: тоді з адреси зникає #book-…, і запис в історії для категорії виходить чистим
       $('book').close();
+      selectCat(name);
     };
     crumbs.append(a);
   });
@@ -162,11 +163,13 @@ $('bookImg').addEventListener('error', () => {
 });
 
 // #book-15 в адресі відкриває картку одразу після завантаження каталогу
+// Збережений у браузері каталог може ще не знати книги — тоді відкриє свіжий; відкрили — більше не чіпаємо
 let hashChecked = false;
 function openFromHash() {
   if (hashChecked) return;
-  hashChecked = true;
   const m = location.hash.match(/^#book-(.+)$/);
-  const b = m && byId.get(decodeURIComponent(m[1]));
-  if (b) openBook(b);
+  const b = m && byId.get(safeDecode(m[1]));
+  if (!b) return;
+  hashChecked = true;
+  if (!$('book').open) openBook(b);
 }

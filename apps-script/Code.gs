@@ -34,6 +34,8 @@ const ITEMS_SHEET = 'Позиції';
 
 // Захист від спаму: скільки різних книг можна в одному замовленні
 const MAX_ITEMS = 100;
+// …і скільки примірників однієї книги (під передзамовлення наявність кількості не обмежує)
+const MAX_QTY = 500;
 // Повтор того самого замовлення (той самий телефон і ті самі книги в тій самій кількості) протягом цього часу
 // не записується вдруге: покупець отримує номер першого. Буває, коли відповідь загубилась і людина натиснула ще раз
 const DUPLICATE_WINDOW_SECONDS = 600;
@@ -468,10 +470,20 @@ function doPost(e) {
 
     const lines = [];
     const problems = [];
+    let gone = false;
     Object.keys(qtyById).forEach(id => {
       const book = byId[id];
       const qty = qtyById[id];
-      if (!book) return;
+      // книгу прибрали з каталогу (видалили, зняли з публікації, прибрали ціну) — не записуємо замовлення без неї мовчки
+      if (!book) {
+        if (!gone) problems.push('Однієї з книг у кошику вже немає в продажу. Оновіть сторінку — вона зникне з кошика.');
+        gone = true;
+        return;
+      }
+      if (qty > MAX_QTY) {
+        problems.push(`«${book.title}»: забагато примірників. Якщо потрібно більше ${MAX_QTY} шт. — напишіть нам.`);
+        return;
+      }
       const stock = Math.max(0, book.stock);
       // понад наявність — лише під передзамовлення
       if (qty > stock && !book.preorder) {
@@ -609,6 +621,7 @@ function readCatalog_() {
   };
   const preorder = col('Передзамовлення');
   const publish = col(PUBLISH_COL);
+  const seenIds = {};
 
   return values.slice(1)
     .filter(r => String(r[c.title]).trim())
@@ -642,7 +655,10 @@ function readCatalog_() {
       return book;
     })
     // книга без ціни (порожньо, 0 або текст) не продається — інакше була б безкоштовною
-    .filter(b => b.price > 0);
+    .filter(b => b.price > 0)
+    // однаковий № у двох книг — кошик і замовлення їх плутають (у кошик іде не та, що на картці);
+    // лишаємо першу, як і збирач (scripts/build.mjs), — він же попереджає про повтор у журналі
+    .filter(b => !seenIds[b.id] && (seenIds[b.id] = true));
 }
 
 // Дописує рядки в кінець аркуша; повертає номер першого доданого рядка
