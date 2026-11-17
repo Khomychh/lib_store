@@ -447,6 +447,12 @@ if (contactsPage) template = chatFromContacts(template, contactsPage.body);
 
 // ---------- збирання ----------
 const catalog = await fetchCatalog();
+// catalog.json — той самий каталог, що віддає Apps Script, але з GitHub за долі секунди: новий відвідувач
+// одразу має пошук і фільтри, поки Apps Script (4–7 с) віддає свіжий (init у js/catalog.js).
+// Знімок — до будь-яких змін книг нижче (gtin тощо), щоб формат був точно як у Apps Script
+const catalogJson = JSON.stringify({
+  books: catalog.books, categories: catalog.categories || [], collections: catalog.collections || [],
+});
 
 // ---------- Категорії: дерево й адреси /katehoriia/<адреса>/ ----------
 // Як buildCategories і адреси категорій у js/filters.js: slugify, categoryNames і categorySlugs — копії звідти,
@@ -538,6 +544,7 @@ for (const name of readdirSync(ROOT)) {
   if (name.startsWith('.') || PRIVATE.has(name)) continue;
   cpSync(join(ROOT, name), join(OUT, name), { recursive: true });
 }
+writeFileSync(join(OUT, 'catalog.json'), catalogJson);
 
 const store = {
   '@context': 'https://schema.org',
@@ -595,14 +602,18 @@ const plural = (n, one, few, many) => {
   if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
   return many;
 };
-function staticRow(b) {
+// Скільки перших обкладинок видно одразу, без прокрутки: їх вантажимо відразу, а не «ліниво», —
+// інакше браузер відкладає саме те, що Google міряє як швидкість показу сторінки (LCP)
+const EAGER = 6;
+const eagerAt = i => i < EAGER;
+function staticRow(b, eager = false) {
   const off = discount(b);
   const badges = (isUsed(b) ? `<span class="cond">${esc(b.condition)}</span>` : '') +
     (off ? `<span class="ribbon">−${off}%</span>` : '');
   const photo = b.photos?.[0];
   let cover;
   if (photo) {
-    const img = cls => `<img class="${cls}" src="${photoUrl(photo, 480)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
+    const img = cls => `<img class="${cls}" src="${photoUrl(photo, 480)}" alt=""${eager ? '' : ' loading="lazy"'} decoding="async" referrerpolicy="no-referrer">`;
     cover = `<div class="cover photo" aria-hidden="true">${img('cover-bg')}${img('cover-img')}${badges}</div>`;
   } else {
     cover = clothCover(b, 'cover blank', badges);
@@ -669,7 +680,7 @@ function shelfHtml(c) {
     `<h2 class="shelf-title" id="shelf-${c.slug}"><a href="${href}">${esc(c.name)}</a></h2>` +
     `<a class="shelf-all" href="${href}" aria-label="Усі ${countText(n)} добірки «${esc(c.name)}»">Усі ${countText(n)}${ARROW(1)}</a></div>` +
     // на вітрині лише назва; опис (якщо є в аркуші) — на сторінці добірки
-    `<ul class="shelf-row grid">${c.list.slice(0, SHELF_MAX).map(staticRow).join('')}${more}</ul></section>`;
+    `<ul class="shelf-row grid">${c.list.slice(0, SHELF_MAX).map((b, i) => staticRow(b, eagerAt(i))).join('')}${more}</ul></section>`;
 }
 const collIntroHtml = c => `<div class="coll-intro" id="collIntro"><a class="back glass" href="/">${ARROW(-1)}Усі книги</a>` +
   `<section class="coll-head glass"><p class="coll-kicker">Добірка</p><h1>${esc(c.name)}</h1>` +
@@ -678,8 +689,10 @@ const collIntroHtml = c => `<div class="coll-intro" id="collIntro"><a class="bac
 const catalogPages = [];
 for (let n = 1; n <= pageCount; n++) {
   const rows = sorted.slice((n - 1) * PAGE, n * PAGE);
+  // на головній над каталогом полиця добірки — одразу видно її обкладинки, а не каталогу
+  const shelfAbove = n === 1 && collections.length > 0;
   let html = template
-    .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
+    .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${rows.map((b, i) => staticRow(b, !shelfAbove && eagerAt(i))).join('\n')}\n  </ul>`)
     .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) => `<nav class="pager" id="pager"${attrs}>${pagerHtml(n)}</nav>`);
   if (!html.includes('<ul class="list grid" id="list">') || !html.includes('<nav class="pager" id="pager"')) {
     throw new Error('Не знайшов у index.html місце для каталогу чи перемикача сторінок (id="list", id="pager")');
@@ -713,7 +726,7 @@ for (const c of collections) {
     `Добірка «${c.name}»: ${countText(n)} — ${c.list.slice(0, 3).map(b => `«${b.title}»`).join(', ')}${n > 3 ? '…' : '.'}`);
   const html = template
     .replace('<div class="coll-intro" id="collIntro" hidden></div>', () => collIntroHtml(c))
-    .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${c.list.map(staticRow).join('\n')}\n  </ul>`)
+    .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${c.list.map((b, i) => staticRow(b, eagerAt(i))).join('\n')}\n  </ul>`)
     // сортування «Як у добірці» тут вибране одразу — так, як покаже й скрипт
     .replace(/<li role="option" data-value="collection" hidden>(.*?)<\/li>/, '<li role="option" data-value="collection" aria-selected="true">$1</li>')
     .replace('<li role="option" data-value="newest" aria-selected="true">', '<li role="option" data-value="newest">')
@@ -778,7 +791,7 @@ for (const node of cats.values()) {
     const rows = list.slice((n - 1) * PAGE, n * PAGE);
     const html = template
       .replace('<div class="coll-intro" id="collIntro" hidden></div>', () => catIntroHtml(node))
-      .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${rows.map(staticRow).join('\n')}\n  </ul>`)
+      .replace('<ul class="list" id="list"></ul>', () => `<ul class="list grid" id="list">\n${rows.map((b, i) => staticRow(b, eagerAt(i))).join('\n')}\n  </ul>`)
       .replace(/<nav class="pager" id="pager"([^>]*) hidden><\/nav>/, (all, attrs) =>
         count > 1 ? `<nav class="pager" id="pager"${attrs}>${pagerHtml(n, count, path)}</nav>` : all);
     if (!html.includes('<div class="coll-intro" id="collIntro">')) throw new Error('Не знайшов у index.html місце для заголовка категорії (id="collIntro")');

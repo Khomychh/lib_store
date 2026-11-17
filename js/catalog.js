@@ -63,11 +63,26 @@ async function init() {
   // на опублікованому сайті перші книги вже вписані в HTML (scripts/build.mjs) — заглушки не потрібні
   else if (!$('list').children.length) renderSkeleton();
 
+  // свіжий каталог з Apps Script відповідає 4–7 с. Тому, хто прийшов уперше (немає збереженого),
+  // тим часом даємо catalog.json зі збірки (до години давності) — він приходить за долі секунди
+  let fresh = false;
+  if (!cached) {
+    fetch('/catalog.json')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data?.books || fresh) return; // свіжий уже прийшов — старіший не показуємо
+        cached = data;
+        setBooks(data, false);
+      })
+      .catch(() => {}); // локально чи без файлу — просто чекаємо Apps Script
+  }
+
   try {
     const res = await fetch(API_URL);
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
     const catalog = { books: data.books, categories: data.categories || [], collections: data.collections || [] };
+    fresh = true;
     try { localStorage.setItem(BOOKS_KEY, JSON.stringify(catalog)); } catch {}
     setBooks(catalog, !!cached);
   } catch (err) {
