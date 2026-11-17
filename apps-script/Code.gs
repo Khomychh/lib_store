@@ -1034,7 +1034,14 @@ function formSaveBook(input, isNew) {
       // хтось додав книгу в таблицю, ця отримає наступний — без помилки й без повтору номера видаленої книги
       b.id = String(formNextId_(values, idCol));
       rememberBookId_(b.id);
-      rowIndex = sheet.getLastRow(); // наступний після останнього заповненого (values рахує з 0)
+      // Наступний після останнього рядка з № чи назвою (values рахує з 0). sheet.getLastRow() не годиться:
+      // галочки «Публікація» стоять у всіх рядках аркуша (навіть порожніх), і він повертав би самий низ таблиці
+      rowIndex = 1;
+      const titleCol = col('Назва');
+      values.forEach((r, i) => {
+        if (i > 0 && (String(r[idCol]).trim() || (titleCol >= 0 && String(r[titleCol]).trim()))) rowIndex = i + 1;
+      });
+      if (rowIndex + 1 > sheet.getMaxRows()) sheet.insertRowsAfter(sheet.getMaxRows(), rowIndex + 1 - sheet.getMaxRows());
     } else {
       rowIndex = formFindRow_(values, idCol, b.id);
       if (rowIndex < 0) throw new Error(`Книги №${b.id} немає в каталозі — можливо, її видалили.`);
