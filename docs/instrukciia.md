@@ -1,6 +1,6 @@
 # Інструкція для продавця
 
-Як вести книжкову крамницю [olenka-shop.ivankhomych.com](https://olenka-shop.ivankhomych.com):
+Як вести книжкову крамницю [knyhoskynia.com.ua](https://knyhoskynia.com.ua):
 додавати книги, приймати замовлення й відповідати покупцям. Програмувати нічого не потрібно — уся робота
 в Google Таблицях і в Telegram.
 
