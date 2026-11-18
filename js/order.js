@@ -162,10 +162,13 @@ function updateDelivery() {
   F.city.placeholder = m.np && npOnline ? 'Почніть вводити назву' : 'Назва населеного пункту';
 
   const pickup = method() === 'pickup';
-  $('codSub').textContent = pickup ? 'готівкою або переказом' : 'накладений платіж';
-  $('payNote').textContent = F.payment.value === 'prepay'
+  $('codSub').textContent = pickup ? 'готівкою або переказом' : '';
+  const prepay = F.payment.value === 'prepay';
+  $('payNote').textContent = prepay
     ? 'Після підтвердження замовлення надішлемо реквізити для оплати.'
     : pickup ? '' : 'Перевізник бере комісію за грошовий переказ за своїми тарифами.';
+  // попередження про комісію — помітніше за звичайну підказку
+  $('payNote').classList.toggle('note-fee', !prepay && !pickup);
 }
 
 // Спосіб доставки складається з двох виборів: перевізник і (для Нової пошти) як отримати.
