@@ -14,17 +14,17 @@
   .bar .combo { flex: 1; }
   h2 { font-size: 15px; margin: 4px 0 10px; }
   h2 small { font-weight: normal; color: #5f6368; }
-  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 12px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px 12px; }
   .grid .w2 { grid-column: span 2; }
   .grid .w3 { grid-column: span 3; }
   h3 { font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: .04em; color: #5f6368;
-       margin: 14px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #e8eaed; }
+       margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #e8eaed; }
   h3:first-of-type { margin-top: 0; }
   h3 small { font-weight: normal; text-transform: none; letter-spacing: 0; }
   .grid .w4 { grid-column: span 4; }
-  label { display: block; font-size: 12px; color: #5f6368; margin-bottom: 2px; }
+  label { display: block; font-size: 12px; color: #5f6368; margin-bottom: 1px; }
   label b { color: #d93025; font-weight: normal; }
-  input, select, textarea { width: 100%; font: inherit; padding: 5px 7px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; }
+  input, select, textarea { width: 100%; font: inherit; padding: 4px 7px; border: 1px solid #dadce0; border-radius: 4px; background: #fff; }
   input:focus, select:focus, textarea:focus { outline: none; border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
   input[readonly] { background: #f1f3f4; color: #5f6368; }
   textarea { min-height: 70px; resize: vertical; }
@@ -32,7 +32,9 @@
   label.check input { width: auto; margin: 0; }
   label.check small { color: #5f6368; font-size: 11px; }
   .bad { border-color: #d93025 !important; }
-  .hint { font-size: 11px; color: #5f6368; min-height: 14px; margin-top: 2px; }
+  /* порожня підказка місця не займає — з'являється під полем лише з текстом */
+  .hint { font-size: 11px; color: #5f6368; margin-top: 2px; }
+  .hint:empty { display: none; }
   .hint.err { color: #d93025; }
   .hint.ok { color: #188038; }
   .warn { background: #fef7e0; border: 1px solid #f9d77e; border-radius: 4px; padding: 6px 8px; margin: 8px 0 0; }
@@ -79,23 +81,39 @@
   button { font: inherit; padding: 6px 14px; border-radius: 4px; border: 1px solid #dadce0; background: #fff; cursor: pointer; }
   button.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: bold; }
   button:disabled { opacity: .5; cursor: default; }
+  /* головна кнопка — «Додати книгу» / «Зберегти зміни» */
+  button.primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px;
+                   padding: 8px 22px; border: none; border-radius: 18px; background: #1a73e8; color: #fff;
+                   font-weight: bold; letter-spacing: .01em;
+                   box-shadow: 0 1px 2px rgba(60,64,67,.3), 0 1px 3px 1px rgba(60,64,67,.15);
+                   transition: background-color .15s, box-shadow .15s, transform .05s; }
+  button.primary:hover { background: #1765cc; box-shadow: 0 1px 3px rgba(60,64,67,.3), 0 4px 8px 3px rgba(60,64,67,.15); }
+  button.primary:active { background: #185abc; transform: translateY(1px); }
+  button.primary:focus-visible { outline: 2px solid #1a73e8; outline-offset: 2px; }
+  button.primary.busy { opacity: 1; cursor: progress; background: #4a90ec; box-shadow: none; }
+  button.primary.busy::before { content: ''; width: 14px; height: 14px; border-radius: 50%;
+                                border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; animation: spin .7s linear infinite; }
+  button.primary.done { background: #188038; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  button.icon { width: 30px; height: 30px; padding: 0; font-size: 20px; line-height: 1; flex: none; }
   #status { white-space: pre-line; }
   #status.err { color: #d93025; }
   #status.ok { color: #188038; }
   .loading { color: #5f6368; padding: 30px 0; text-align: center; }
 
-  /* бічна панель (~300 px): дві колонки замість чотирьох, пошук — окремим рядком */
+  /* бічна панель (~300 px): дві колонки замість чотирьох */
   @media (max-width: 480px) {
     body { padding: 10px 10px 14px; }
-    .bar { flex-wrap: wrap; }
-    .bar .combo { flex-basis: 100%; }
-    .bar button { flex: 1; }
+    .bar .combo { min-width: 0; }
     .grid { grid-template-columns: 1fr 1fr; }
-    .grid .w2, .grid .w3, .grid .w4 { grid-column: span 2; }
+    .grid .w2, .grid .w3, .grid .w4, .grid .full { grid-column: span 2; }
+    .grid .w2.half { grid-column: span 1; }
     .dd .opt { white-space: normal; }
     .thumbs { display: grid; grid-template-columns: 1fr 1fr; }
     .ph { width: auto; height: 160px; }
-    .actions { position: sticky; bottom: 0; background: #fff; padding: 8px 0; margin-top: 8px; flex-wrap: wrap; }
+    /* прозорий фон з розмиттям: колір панелі задає Google, а поля під кнопкою, коли гортаєш, не читаються крізь неї */
+    .actions { position: sticky; bottom: 0; background: transparent; backdrop-filter: blur(6px); padding: 8px 0; margin-top: 8px; flex-wrap: wrap; }
+    .actions button.primary { flex: 1 1 100%; }
   }
 </style>
 </head>
@@ -105,8 +123,7 @@
 <div id="app" hidden>
   <div class="bar">
     <input id="search" placeholder="Знайти книгу: №, назва або автор">
-    <button id="openBtn">Відкрити</button>
-    <button id="newBtn">Нова книга</button>
+    <button id="newBtn" class="icon" title="Нова книга" aria-label="Нова книга">+</button>
   </div>
 
   <h2 id="mode"></h2>
@@ -115,10 +132,10 @@
     <!-- № нової книги ставить сервер; тут він лише для редагування наявної -->
     <input type="hidden" name="id">
 
-    <h3>Книга <small>— переписуєте з книги</small></h3>
+    <h3>Книга</h3>
     <div class="grid">
       <div class="w3"><label>Назва <b>*</b></label><input name="title"><div class="hint" data-for="title"></div></div>
-      <div><label>Автор</label><input name="author"><div class="hint" data-for="author"></div></div>
+      <div class="full"><label>Автор</label><input name="author"><div class="hint" data-for="author"></div></div>
 
       <div class="w2"><label>Категорія</label><input name="category" placeholder="— без категорії —"><div class="hint" data-for="category"></div></div>
       <div><label>Мова</label><input name="language"><div class="hint" data-for="language"></div></div>
@@ -143,8 +160,8 @@
 
     <h3>На сайті</h3>
     <div class="grid">
-      <div class="w2"><label class="check" title="Дозволено показувати на сайті. Потрібні й інші умови: ціна, наявність чи передзамовлення"><input type="checkbox" name="publish" checked> Публікація</label><div class="hint" data-for="publish"></div></div>
-      <div class="w2"><label class="check" title="Книгу можна замовити більше, ніж є, — навіть з К-сть 0"><input type="checkbox" name="preorder"> Передзамовлення <small>(можна замовити більше, ніж є)</small></label></div>
+      <div class="w2 half"><label class="check" title="Дозволено показувати на сайті. Потрібні й інші умови: ціна, наявність чи передзамовлення"><input type="checkbox" name="publish" checked> Публікація</label><div class="hint" data-for="publish"></div></div>
+      <div class="w2 half"><label class="check" title="Книгу можна замовити більше, ніж є, — навіть з К-сть 0"><input type="checkbox" name="preorder"> Передзамовлення</label></div>
 
       <div class="w4"><label>Опис <small>(новий рядок — новий абзац)</small></label><textarea name="description"></textarea></div>
     </div>
@@ -160,7 +177,7 @@
     </div>
 
     <div class="actions">
-      <button type="submit" class="primary" id="saveBtn">Зберегти</button>
+      <button type="submit" class="primary" id="saveBtn"><span id="saveText">Зберегти</span></button>
       <span id="status"></span>
     </div>
   </form>
@@ -472,7 +489,21 @@ function setMode() {
   const small = document.createElement('small');
   small.textContent = editing ? '· № не змінюється: за ним кошик, замовлення й фото' : '· номер ставиться сам';
   mode.appendChild(small);
-  $('#saveBtn').textContent = editing ? 'Зберегти зміни' : 'Додати книгу';
+  $('#saveText').textContent = editing ? 'Зберегти зміни' : 'Додати книгу';
+}
+
+// Кнопка збереження: крутилка, поки зберігаємо; після успіху — зелена «✓ Збережено» на півтори секунди
+let saveFlash = 0;
+function saveButton(state, text) {
+  const btn = $('#saveBtn');
+  clearTimeout(saveFlash);
+  btn.disabled = state === 'busy';
+  btn.classList.toggle('busy', state === 'busy');
+  btn.classList.toggle('done', state === 'done');
+  if (state === 'done') {
+    $('#saveText').textContent = '✓ ' + text;
+    saveFlash = setTimeout(() => { btn.classList.remove('done'); setMode(); }, 1500);
+  }
 }
 
 // ids — наявні фото книги з Диска; keep — нові фото, які лишити у формі (ті, що не завантажились)
@@ -804,7 +835,8 @@ form.addEventListener('submit', async e => {
     return;
   }
   busy = true;
-  $('#saveBtn').disabled = true;
+  saveButton('busy');
+  let saved = false;
   const wasNew = !editing;
   const v = values();
   try {
@@ -853,11 +885,12 @@ form.addEventListener('submit', async e => {
       if (failed.length) dirty = true;
     }
     setStatus(msg, errors.length ? 'err' : 'ok');
+    saved = !errors.length;
   } catch (err) {
     setStatus(err.message, 'err');
   } finally {
     busy = false;
-    $('#saveBtn').disabled = false;
+    saveButton(saved ? 'done' : '', wasNew ? 'Додано' : 'Збережено');
   }
 });
 
@@ -883,7 +916,6 @@ form.addEventListener('input', e => {
 form.addEventListener('focusout', e => { if (e.target.name === 'category') showCheck(); });
 Object.keys(LISTS).forEach(k => field(k).addEventListener('change', () => { listHint(k); showDupes(); }));
 
-$('#openBtn').onclick = findFromSearch;
 $('#newBtn').onclick = () => { if (!busy && canLeave()) { newBook(false); setStatus(''); } };
 
 call('formInit').then(d => {
