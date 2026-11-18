@@ -162,7 +162,7 @@ function updateDelivery() {
   F.city.placeholder = m.np && npOnline ? 'Почніть вводити назву' : 'Назва населеного пункту';
 
   const pickup = method() === 'pickup';
-  $('codSub').textContent = pickup ? 'готівкою або переказом' : '';
+  $('codSub').textContent = pickup ? 'готівкою або переказом' : 'готівкою при отриманні';
   const prepay = F.payment.value === 'prepay';
   $('payNote').textContent = prepay
     ? 'Після підтвердження замовлення надішлемо реквізити для оплати.'

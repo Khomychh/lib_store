@@ -550,7 +550,9 @@ function findFromSearch() {
 // ───── Фото ─────
 
 // Мініатюра фото з Диска — та сама пряма адреса, що й на сайті (scripts/build.mjs)
-const driveThumb = id => `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=w240`;
+// \/\/ замість двох скісних: Google, віддаючи форму, обрізає все від двох скісних як коментар —
+// навіть усередині шаблонного рядка, і тоді вся решта скрипту ламається (форма висить на «Завантажую каталог…»)
+const driveThumb = id => 'https:\/\/lh3.googleusercontent.com/d/' + encodeURIComponent(id) + '=w240';
 
 // Малює картинку не більше 1600 px (швидше вантажиться і на сайт, і в Диск) з поворотом angle за годинниковою
 // (0/90/180/270). Повертає canvas

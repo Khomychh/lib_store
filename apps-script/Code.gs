@@ -60,7 +60,7 @@ const DELIVERY = {
   meest: { label: 'Meest Пошта', required: ['city', 'branch'] },
   pickup: { label: 'Самовивіз', required: [] },
 };
-const PAYMENTS = { cod: 'Післяоплата', prepay: 'Передоплата на картку' };
+const PAYMENTS = { cod: 'Післяплата', prepay: 'Передоплата на картку' };
 
 const STATUSES = [
   ['Нове', '#fff2cc'],
