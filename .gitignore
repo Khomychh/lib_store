@@ -21,3 +21,6 @@ node_modules/
 
 # зібраний сайт (scripts/build.mjs) — публікує GitHub Action, у репозиторій не кладемо
 _site/
+
+# clasp: прив'язка до скрипта продавця (scriptId) — локально
+.clasp.json

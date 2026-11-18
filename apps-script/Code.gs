@@ -886,10 +886,19 @@ const FORM_NUMBERS = ['year', 'pages', 'price', 'salePrice', 'stock'];
 // Простий тригер: додає меню щоразу, коли відкривають таблицю замовлень
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Каталог')
-    .addItem('Додати / змінити книгу', 'showBookForm')
+    .addItem('Додати / змінити книгу', 'showBookPanel')
+    .addItem('Книга у великому вікні', 'showBookForm')
     .addToUi();
 }
 
+// Бічна панель праворуч: закріплена, тож не «прилипає» до курсора, як вікно, яке перетягували
+// (вада Google: коли кнопку миші відпустили над вмістом вікна, воно їде за мишкою до наступного кліку).
+// Ширина панелі фіксована (~300 px) — розкладку під неї BookForm.html робить сама.
+function showBookPanel() {
+  SpreadsheetApp.getUi().showSidebar(HtmlService.createHtmlOutputFromFile('BookForm').setTitle('Книга'));
+}
+
+// Те саме у широкому вікні — просторіше для фото
 function showBookForm() {
   const html = HtmlService.createHtmlOutputFromFile('BookForm').setWidth(780).setHeight(720);
   // немодальне — таблицю поруч можна гортати

@@ -83,6 +83,20 @@
   #status.err { color: #d93025; }
   #status.ok { color: #188038; }
   .loading { color: #5f6368; padding: 30px 0; text-align: center; }
+
+  /* бічна панель (~300 px): дві колонки замість чотирьох, пошук — окремим рядком */
+  @media (max-width: 480px) {
+    body { padding: 10px 10px 14px; }
+    .bar { flex-wrap: wrap; }
+    .bar .combo { flex-basis: 100%; }
+    .bar button { flex: 1; }
+    .grid { grid-template-columns: 1fr 1fr; }
+    .grid .w2, .grid .w3, .grid .w4 { grid-column: span 2; }
+    .dd .opt { white-space: normal; }
+    .thumbs { display: grid; grid-template-columns: 1fr 1fr; }
+    .ph { width: auto; height: 160px; }
+    .actions { position: sticky; bottom: 0; background: #fff; padding: 8px 0; margin-top: 8px; flex-wrap: wrap; }
+  }
 </style>
 </head>
 <body>
