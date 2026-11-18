@@ -30,12 +30,15 @@
   /* єдиний яскравий колір — лише для акцій, щоб їх було видно здалеку */
   --sale: #b3202a;
   /* Акцент — золоте тиснення, як на палітурках (і золото ікон). Лише там, де людина купує:
-     «+» на книзі, кількість, «Оформити», кнопки замовлення, книга в кошику. Решта сайту — графіт і папір */
+     «+» на книзі, кількість, «Оформити», кнопки замовлення, книга в кошику. Решта сайту — графіт і папір.
+     Виняток — назва крамниці в шапці: вона тиснена золотом, як назва на обкладинці */
   --gilt: #b38e45;
   --gilt-foil: linear-gradient(155deg, #dcbd7a, #b08a40 52%, #c9a55e);
   --gilt-ink: #2a2110;
   --gilt-text: #7a5a1a;
   --gilt-shine: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -1px 0 rgba(90, 64, 16, .35);
+  /* золото назви: на світлому склі темніше, щоб читалося; темна смуга посередині — як фольга під світлом */
+  --brand-foil: linear-gradient(176deg, #b8913f 0%, #8a6420 45%, #5f430f 60%, #94702c 85%, #b08a40 100%);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -67,6 +70,7 @@
     --gilt: #c9a55e;
     --gilt-text: #dcbf80;
     --gilt-shine: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -1px 0 rgba(60, 42, 8, .5);
+    --brand-foil: linear-gradient(176deg, #f3e2ad 0%, #d4b06a 38%, #a07a35 58%, #d9bb78 82%, #efd99c 100%);
   }
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -109,26 +113,39 @@ body > .photo {
 
 /* Шапка: скляна табличка */
 header { padding: 56px 16px 32px; }
+/* Назва — золотий курсив, від неї до країв таблички розходяться тонкі золоті лінії.
+   Лінії — ::before/::after самої таблички, тож однаково і з h1.brand (головна), і з a.brand (сторінки книг: так робить збирач) */
 .plaque {
   max-width: 620px; margin: 0 auto;
   padding: 30px 36px 28px;
+  display: flex; align-items: center; gap: 18px;
   text-align: center;
   border-radius: 24px;
   box-shadow: var(--shadow-lg);
 }
+.plaque::before, .plaque::after {
+  content: ""; flex: 1; min-width: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gilt) 60%, transparent));
+}
+.plaque::after { background: linear-gradient(90deg, color-mix(in srgb, var(--gilt) 60%, transparent), transparent); }
 .brand {
-  display: block; color: inherit; text-decoration: none;
-  font: 600 clamp(30px, 5vw, 46px)/1.08 Literata, Georgia, serif;
+  display: block; flex: none; text-decoration: none;
+  font: italic 500 clamp(36px, 6.6vw, 56px)/1.05 Literata, Georgia, serif;
   font-optical-sizing: auto;
-  letter-spacing: -.015em;
+  letter-spacing: -.02em;
   margin: 0;
-  text-wrap: balance;
+  /* курсив виходить за свою рамку праворуч — без запасу золото обрізало б хвости літер */
+  padding: 0 .08em;
+  color: var(--gilt-text);
+}
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  .brand { background: var(--brand-foil); -webkit-background-clip: text; background-clip: text; color: transparent; }
 }
 /* назва — посилання на головну: виглядає як заголовок, клік заново відкриває сайт */
 .brand a { color: inherit; text-decoration: none; border-radius: 6px; }
 @media (max-width: 600px) {
   header { padding: 28px 12px 20px; }
-  .plaque { padding: 22px 20px; border-radius: 20px; }
+  .plaque { padding: 22px 20px; gap: 10px; border-radius: 20px; }
 }
 
 /* Пошук: скляна капсула завширшки зі список */
