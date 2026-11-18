@@ -977,7 +977,7 @@ function formGetBook(id) {
   // немає колонки — книга на сайті, як і всі
   const pub = col(PUBLISH_COL);
   book.publish = pub < 0 || publishedOn_(values[row][pub]) ? 'true' : 'false';
-  book.photoCount = formPhotoNumbers_(book.id).length;
+  book.photos = formPhotos_(book.id).map(p => p.file.getId());
   return book;
 }
 
@@ -1096,12 +1096,13 @@ function formAddColumn_(sheet, head, name) {
   return col - 1;
 }
 
-// Порядкові номери наявних фото книги: 15.jpg → 1, 15-3.jpg → 3
-function formPhotoNumbers_(id) {
+// Фото книги в папці — [{ file (File), n, name }] у порядку, як на сайті: за порядковим номером
+// (15.jpg → 1, 15-3.jpg → 3), з однаковим номером — спершу найновіше (саме його бере сайт)
+function formPhotos_(id) {
   const folder = photosFolder_();
   if (!folder || !id) return [];
   const key = String(id).toLowerCase();
-  const numbers = [];
+  const list = [];
   // пошук Диска за початком назви; точний збіг перевіряємо самі (щоб 150.jpg не зарахувався книзі 15)
   const files = DriveApp.getFolderById(folder).searchFiles(`title contains '${String(id).replace(/'/g, '')}'`);
   while (files.hasNext()) {
@@ -1109,27 +1110,95 @@ function formPhotoNumbers_(id) {
     if (f.isTrashed() || !f.getMimeType().startsWith('image/')) continue;
     const name = f.getName().replace(/\.[^.]*$/, '').trim().toLowerCase();
     const m = name.match(/^(.+?)\s*-\s*(\d+)$/);
-    if ((m ? m[1] : name) === key) numbers.push(m ? Number(m[2]) : 1);
+    if ((m ? m[1] : name) !== key) continue;
+    list.push({ file: f, n: m ? Number(m[2]) : 1, name: f.getName(), date: f.getLastUpdated().getTime() });
   }
-  return numbers;
+  return list.sort((a, b) => a.n - b.n || b.date - a.date);
 }
 
-// Додає фото книги в папку з наступним вільним номером (перше — 15.jpg, далі 15-2.jpg…).
-// base64 — JPEG, уже зменшений у браузері
-function formAddPhoto(id, base64) {
+function formPhotoCheck_(id) {
   const folder = photosFolder_();
   if (!folder) throw new Error('Папка з фото не налаштована: додайте PHOTOS_FOLDER у Властивості скрипта.');
   if (!/^[\p{L}\p{N}_-]+$/u.test(String(id))) throw new Error('Неправильний № книги.');
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
+  return folder;
+}
+
+// Фото книги так, як їх покаже сайт: з однаковим номером — лише найновіше (як у photos_)
+const sitePhotos_ = list => list.filter((p, i) => !i || p.n !== list[i - 1].n).map(p => p.file.getId());
+
+// Сайт бере фото з кешу (photos_). Після змін у формі правимо в кеші лише цю книгу, а не скидаємо його:
+// інакше наступний покупець чекав би, поки скрипт обійде всю папку з фото
+function formPhotosChanged_(id, ids) {
   try {
-    const n = formPhotoNumbers_(id).reduce((max, x) => Math.max(max, x), 0) + 1;
+    const cached = cacheGet_('photos');
+    if (!cached) return; // кешу й так немає — сайт прочитає папку заново
+    const map = JSON.parse(cached);
+    const key = String(id).toLowerCase();
+    if (ids.length) map[key] = ids; else delete map[key];
+    cachePut_('photos', JSON.stringify(map), 600);
+  } catch (err) {
+    console.error(err);
+    try { CacheService.getScriptCache().remove('photos'); } catch (e) { console.error(e); }
+  }
+}
+
+// Окремий замок для фото: скриптовий тримають і замовлення з сайту (doPost), і їм не треба чекати,
+// поки перейменовуються фото. Форма відкрита з таблиці, тож замок документа є; про всяк випадок — скриптовий
+function photoLock_() {
+  const lock = LockService.getDocumentLock() || LockService.getScriptLock();
+  lock.waitLock(20000);
+  return lock;
+}
+
+// ID фото книги по порядку — щоб форма показала, що насправді лежить на Диску
+function formBookPhotos(id) {
+  return formPhotos_(id).map(p => p.file.getId());
+}
+
+// Додає фото книги в папку з наступним вільним номером (перше — 15.jpg, далі 15-2.jpg…).
+// base64 — JPEG, уже зменшений у браузері. Повертає { file: ID файлу, name }
+function formAddPhoto(id, base64) {
+  const folder = formPhotoCheck_(id);
+  const lock = photoLock_();
+  try {
+    const list = formPhotos_(id);
+    const n = list.reduce((max, p) => Math.max(max, p.n), 0) + 1;
     const name = n === 1 ? `${id}.jpg` : `${id}-${n}.jpg`;
-    DriveApp.getFolderById(folder)
+    const file = DriveApp.getFolderById(folder)
       .createFile(Utilities.newBlob(Utilities.base64Decode(base64), 'image/jpeg', name));
-    // скидаємо кеш списку фото, щоб сайт побачив нове одразу, а не за 10 хвилин
-    try { CacheService.getScriptCache().remove('photos'); } catch (err) { console.error(err); }
-    return name;
+    list.push({ file, n, name });
+    formPhotosChanged_(id, sitePhotos_(list));
+    return { file: file.getId(), name };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Новий порядок фото книги: order — ID файлів (перше — обкладинка), remove — ID файлів у кошик Диска.
+// Файли перейменовуються в 15.jpg, 15-2.jpg… (розширення лишається). Беремо лише фото цієї книги:
+// чужі й уже видалені ID пропускаємо, а фото, яких форма не знала (додали на Диск тим часом), ставимо в кінець.
+// Повертає ID фото в новому порядку
+function formArrangePhotos(id, order, remove) {
+  formPhotoCheck_(id);
+  const lock = photoLock_();
+  try {
+    const current = formPhotos_(id);
+    const byId = {};
+    current.forEach(p => { byId[p.file.getId()] = p; });
+    const drop = (remove || []).filter(f => byId[f]);
+    const keep = [];
+    (order || []).concat(current.map(p => p.file.getId())).forEach(f => {
+      if (byId[f] && drop.indexOf(f) < 0 && keep.indexOf(f) < 0) keep.push(f);
+    });
+    drop.forEach(f => byId[f].file.setTrashed(true));
+    keep.forEach((f, i) => {
+      const p = byId[f];
+      const ext = ((p.name.match(/\.[^.]*$/) || ['.jpg'])[0]).toLowerCase();
+      const name = i ? `${id}-${i + 1}${ext}` : `${id}${ext}`;
+      if (p.name !== name) p.file.setName(name);
+    });
+    formPhotosChanged_(id, keep); // після перейменування номери в усіх різні, тож сайт покаже саме їх
+    return keep;
   } finally {
     lock.releaseLock();
   }

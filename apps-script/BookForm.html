@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Форма «Книга» (меню «Каталог» у таблиці замовлень). Серверні функції — у Code.gs: formInit, formGetBook,
-  formSaveBook, formAddPhoto. Перевірки тут лише для зручності; остаточні — на сервері (formValidate_).
+  formSaveBook, formAddPhoto, formArrangePhotos, formBookPhotos. Перевірки тут лише для зручності; остаточні — на сервері (formValidate_).
 -->
 <html>
 <head>
@@ -49,9 +49,32 @@
   .dd .opt mark { background: none; color: inherit; font-weight: bold; }
   .dd .more { padding: 4px 8px; color: #5f6368; font-size: 11px; }
 
-  .photos { margin-top: 10px; }
-  .thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-  .thumbs img { height: 70px; border-radius: 3px; border: 1px solid #dadce0; cursor: pointer; }
+  /* фото: плитки з кнопками, перетягування для порядку */
+  .photos { margin-top: 14px; border-radius: 6px; }
+  .photos.drop { outline: 2px dashed #1a73e8; outline-offset: 4px; background: #f4f8fe; }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ph { position: relative; width: 100px; height: 132px; border: 1px solid #dadce0; border-radius: 4px;
+        background: #f8f9fa; overflow: hidden; cursor: grab; user-select: none; }
+  .ph img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+  .ph.dragging { opacity: .4; }
+  .ph.gone img { opacity: .25; }
+  .ph.broken::before { content: 'немає доступу до фото'; position: absolute; inset: 40px 6px auto; text-align: center;
+                       font-size: 11px; color: #5f6368; }
+  .ph .tag { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 4px; font-size: 11px; text-align: center;
+             background: rgba(32,33,36,.72); color: #fff; }
+  .ph .tag.cover { background: rgba(26,115,232,.9); }
+  .ph .tag.gone { background: rgba(217,48,37,.9); }
+  .ph .tools { position: absolute; top: 3px; right: 3px; display: flex; flex-direction: column; gap: 3px; }
+  .ph .tools button { width: 24px; height: 24px; padding: 0; font-size: 13px; line-height: 22px; border-radius: 50%;
+                      background: rgba(255,255,255,.92); border-color: #dadce0; }
+  .ph .tools button:hover { background: #fff; border-color: #5f6368; }
+  .ph .tools button[hidden] { display: none; }
+  .ph.add { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px;
+            border-style: dashed; cursor: pointer; text-align: center; color: #1a73e8; background: #fff; }
+  .ph.add b { font-size: 26px; font-weight: normal; line-height: 1; color: inherit; }
+  .ph.add small { color: #5f6368; font-size: 11px; }
+  .ph.add:hover { background: #f4f8fe; }
+  .ph.add.wait { cursor: progress; color: #5f6368; }
   .actions { display: flex; gap: 10px; align-items: center; margin-top: 14px; }
   button { font: inherit; padding: 6px 14px; border-radius: 4px; border: 1px solid #dadce0; background: #fff; cursor: pointer; }
   button.primary { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: bold; }
@@ -113,9 +136,13 @@
     </div>
 
     <div id="photoBox" class="photos" hidden>
-      <label>Фото <span id="photoInfo"></span></label>
-      <input id="photoInput" type="file" accept="image/*" multiple>
+      <h3>Фото <small>— перше — обкладинка; порядок — перетягуванням; зміни потраплять на Диск після збереження</small></h3>
       <div class="thumbs" id="thumbs"></div>
+      <label class="ph add" id="addTile" title="Можна також перетягнути файли у форму або вставити з буфера (Ctrl+V)">
+        <b>+</b>Додати фото<small>або перетягніть сюди, або Ctrl+V</small>
+        <input id="photoInput" type="file" accept="image/*,.heic,.heif" multiple hidden>
+      </label>
+      <div class="hint" id="photoInfo"></div>
     </div>
 
     <div class="actions">
@@ -137,7 +164,10 @@ const STICKY = ['category', 'condition', 'binding', 'language'];
 let data = null;      // відповідь formInit
 let editing = null;   // № книги, яку редагуємо; null — нова
 let dirty = false;
-let photos = [];      // [{ base64, url }]
+// Фото у формі, по порядку (перше — обкладинка). Наявне на Диску: { file }, позначене до видалення — ще й removed.
+// Нове: { isNew, source (File), angle, base64, url }; після завантаження в нього теж з'являється file
+let photos = [];
+let photosWere = [];  // ID файлів на Диску в тому порядку, як було при відкритті книги
 let busy = false;
 let preorderWas = ''; // «Передзамовлення» книги в таблиці до змін: порожнє лишається порожнім, якщо галочку не ставили
 
@@ -431,10 +461,13 @@ function setMode() {
   $('#saveBtn').textContent = editing ? 'Зберегти зміни' : 'Додати книгу';
 }
 
-function clearPhotos() {
-  photos = [];
-  $('#thumbs').innerHTML = '';
+// ids — наявні фото книги з Диска; keep — нові фото, які лишити у формі (ті, що не завантажились)
+function setPhotos(ids, keep) {
+  photos.forEach(p => { if (p.el) p.el.remove(); });
+  photos = ids.map(file => ({ file })).concat(keep || []);
+  photosWere = ids.slice();
   $('#photoInput').value = '';
+  renderPhotos();
 }
 
 function resetForm() {
@@ -453,8 +486,7 @@ function newBook(keepSticky) {
   Object.keys(keep).forEach(k => { field(k).value = keep[k]; });
   field('id').value = data.nextId;
   field('stock').value = 1;
-  $('#photoInfo').textContent = '';
-  clearPhotos();
+  setPhotos([]);
   setMode();
   showDupes();
   dirty = false;
@@ -483,8 +515,7 @@ async function openBook(id) {
     field('publish').checked = book.publish === 'true';
     preorderWas = book.preorder;
     field('preorder').checked = /^доступн/i.test(book.preorder);
-    $('#photoInfo').textContent = data.photos ? `(уже є: ${book.photoCount}; нові додадуться після них)` : '';
-    clearPhotos();
+    setPhotos(book.photos || []);
     setMode();
     showCheck();
     dirty = false;
@@ -518,46 +549,230 @@ function findFromSearch() {
 
 // ───── Фото ─────
 
-// Зменшуємо до 1600 px і JPEG: швидше вантажиться і на сайт, і в Диск
-function shrink(file) {
+// Мініатюра фото з Диска — та сама пряма адреса, що й на сайті (scripts/build.mjs)
+const driveThumb = id => `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=w240`;
+
+// Малює картинку не більше 1600 px (швидше вантажиться і на сайт, і в Диск) з поворотом angle за годинниковою
+// (0/90/180/270). Повертає canvas
+function draw(blob, angle) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
+    const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
       const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const side = angle % 180 !== 0;
       const canvas = document.createElement('canvas');
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
+      canvas.width = side ? h : w;
+      canvas.height = side ? w : h;
       const ctx = canvas.getContext('2d');
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate(angle * Math.PI / 180);
+      ctx.drawImage(img, -w / 2, -h / 2, w, h);
       URL.revokeObjectURL(url);
-      resolve({ base64: dataUrl.split(',')[1], url: dataUrl });
+      resolve(canvas);
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`«${file.name}»: формат не підтримується, збережіть як JPG`)); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('не вдалося прочитати картинку')); };
     img.src = url;
   });
 }
 
-$('#photoInput').addEventListener('change', async e => {
-  const files = [...e.target.files];
-  e.target.value = '';
+// Те, що піде на Диск: JPEG 85%
+function jpeg(canvas) {
+  const url = canvas.toDataURL('image/jpeg', 0.85);
+  return { url, base64: url.split(',')[1] };
+}
+
+// Нове фото з файлу. Зменшену копію (source) тримаємо для поворотів: її розкодувати — миті,
+// а 12-мегапіксельний оригінал з телефона — помітна затримка на кожен клік
+async function newPhoto(file) {
+  let canvas;
+  try { canvas = await draw(file, 0); } catch (err) {
+    throw new Error(/\.hei[cf]$/i.test(file.name) || /hei[cf]/i.test(file.type)
+      ? `«${file.name}»: фото з iPhone у форматі HEIC браузер не відкриває. Збережіть його як JPG ` +
+        '(або на iPhone: Параметри → Камера → Формати → «Найсумісніший»)'
+      : `«${file.name}»: формат не підтримується, збережіть як JPG`);
+  }
+  const source = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.95));
+  return Object.assign({ isNew: true, source, angle: 0 }, jpeg(canvas));
+}
+
+const looksLikeImage = f => f.type.startsWith('image/') || /\.(jpe?g|png|gif|webp|bmp|hei[cf])$/i.test(f.name);
+
+async function addFiles(fileList) {
+  const files = [...fileList].filter(looksLikeImage);
+  if (!files.length) return;
+  const tile = $('#addTile');
+  tile.classList.add('wait');
+  const errors = [];
   for (const f of files) {
     try {
-      const p = await shrink(f);
-      photos.push(p);
-      const img = document.createElement('img');
-      img.src = p.url;
-      img.title = 'Натисніть, щоб прибрати';
-      img.onclick = () => { photos.splice(photos.indexOf(p), 1); img.remove(); };
-      $('#thumbs').appendChild(img);
+      photos.push(await newPhoto(f));
       dirty = true;
+      renderPhotos();
     } catch (err) {
-      setStatus(err.message, 'err');
+      errors.push(err.message);
     }
   }
+  tile.classList.remove('wait');
+  if (errors.length) setStatus(errors.join('\n'), 'err');
+}
+
+function tool(act, text, title) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.dataset.act = act;
+  b.textContent = text;
+  b.title = title;
+  return b;
+}
+
+function photoTile(p) {
+  const el = document.createElement('div');
+  el.className = 'ph';
+  el.draggable = true;
+  el.photo = p;
+  const img = new Image();
+  img.alt = '';
+  img.draggable = false;
+  img.src = p.isNew ? p.url : driveThumb(p.file);
+  // папка не відкрита за посиланням чи файл не картинка — показуємо порожню плитку з поясненням
+  img.onerror = () => { el.classList.add('broken'); el.title = 'Не вдалося показати фото: папка з фото має бути відкрита за посиланням'; };
+  // поки повернуте фото домальовується, мініатюра повернута через CSS на різницю кутів
+  const turnThumb = () => {
+    const diff = ((p.angle || 0) - (p.drawn || 0) + 360) % 360;
+    img.style.transform = diff ? `rotate(${diff}deg)` : '';
+  };
+  img.onload = turnThumb;
+  const tools = document.createElement('div');
+  tools.className = 'tools';
+  tools.append(
+    tool('remove', '✕', p.isNew ? 'Прибрати це фото' : 'Видалити фото (піде в кошик Диска після збереження)'),
+    tool('restore', '↶', 'Не видаляти'),
+    tool('cover', '★', 'Зробити обкладинкою'),
+  );
+  if (p.isNew) tools.append(tool('rotate', '↻', 'Повернути на 90°'));
+  const tag = document.createElement('div');
+  tag.className = 'tag';
+  el.append(img, tools, tag);
+
+  tools.addEventListener('click', async e => {
+    const act = e.target.dataset.act;
+    if (!act || busy) return;
+    dirty = true;
+    if (act === 'remove' && p.isNew) { photos.splice(photos.indexOf(p), 1); el.remove(); }
+    else if (act === 'remove') p.removed = true;
+    else if (act === 'restore') p.removed = false;
+    else if (act === 'cover') { photos.splice(photos.indexOf(p), 1); photos.unshift(p); }
+    else if (act === 'rotate') {
+      const angle = p.angle = (p.angle + 90) % 360;
+      turnThumb(); // мініатюру крутимо одразу, а саме фото домальовується
+      // на pending чекає збереження, щоб не завантажити фото з попереднім поворотом
+      p.pending = draw(p.source, angle).then(canvas => {
+        if (p.angle !== angle) return; // клікнули ще раз, поки малювали, — переможе останній клік
+        Object.assign(p, jpeg(canvas));
+        p.drawn = angle;
+        img.src = p.url;
+      });
+    }
+    renderPhotos();
+  });
+
+  // перетягування: плитка їде за курсором, порядок у photos беремо з DOM, коли відпустили
+  el.addEventListener('dragstart', e => {
+    if (busy) { e.preventDefault(); return; }
+    dragged = p;
+    el.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+  });
+  el.addEventListener('dragend', () => {
+    el.classList.remove('dragging');
+    dragged = null;
+    const before = photos.slice();
+    photos = [...$('#thumbs').children].map(c => c.photo).filter(Boolean);
+    if (photos.some((x, i) => x !== before[i])) dirty = true;
+    renderPhotos();
+  });
+  return el;
+}
+
+let dragged = null; // фото, яке зараз перетягують
+
+function renderPhotos() {
+  const box = $('#thumbs');
+  const live = photos.filter(p => !p.removed);
+  photos.forEach(p => {
+    const el = p.el || (p.el = photoTile(p));
+    const tag = el.querySelector('.tag');
+    el.classList.toggle('gone', Boolean(p.removed));
+    tag.className = 'tag' + (p.removed ? ' gone' : p === live[0] ? ' cover' : '');
+    tag.textContent = p.removed ? 'буде видалено' : p === live[0] ? 'Обкладинка' : p.isNew ? 'нове' : '';
+    tag.hidden = !tag.textContent;
+    el.querySelector('[data-act="remove"]').hidden = Boolean(p.removed);
+    el.querySelector('[data-act="restore"]').hidden = !p.removed;
+    el.querySelector('[data-act="cover"]').hidden = Boolean(p.removed) || p === live[0];
+    const rotate = el.querySelector('[data-act="rotate"]');
+    if (rotate) rotate.hidden = Boolean(p.removed);
+    box.appendChild(el);
+  });
+  box.appendChild($('#addTile'));
+
+  const added = live.filter(p => p.isNew && !p.file).length;
+  const removed = photos.filter(p => p.removed).length;
+  const parts = [];
+  if (added) parts.push(`нових: ${added}`);
+  if (removed) parts.push(`до видалення: ${removed}`);
+  if (photoOrderChanged()) parts.push('порядок змінено');
+  $('#photoInfo').textContent = parts.length ? `Після збереження — ${parts.join(', ')}.` : '';
+}
+
+// Чи треба переставляти файли на Диску: порядок наявних фото змінився або нове стоїть перед наявним
+// (нові без цього просто додаються в кінець)
+function photoOrderChanged() {
+  const live = photos.filter(p => !p.removed);
+  const old = live.filter(p => !p.isNew).map(p => p.file);
+  const lastOld = live.map(p => !p.isNew).lastIndexOf(true);
+  return old.join() !== photosWere.filter(f => old.includes(f)).join() ||
+    (lastOld > 0 && live.slice(0, lastOld).some(p => p.isNew));
+}
+
+$('#photoInput').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+
+$('#thumbs').addEventListener('dragover', e => {
+  if (!dragged) return;
+  e.preventDefault();
+  const over = e.target.closest('.ph');
+  if (!over || !over.photo || over === dragged.el) return;
+  const r = over.getBoundingClientRect();
+  $('#thumbs').insertBefore(dragged.el, e.clientX > r.left + r.width / 2 ? over.nextSibling : over);
+});
+
+// Файли можна кинути будь-де у формі; поки тягнуть — підсвічуємо блок фото
+const draggingFiles = e => !dragged && [...e.dataTransfer.types].includes('Files') && !$('#photoBox').hidden;
+document.addEventListener('dragover', e => {
+  if (!draggingFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  $('#photoBox').classList.add('drop');
+});
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) $('#photoBox').classList.remove('drop'); });
+document.addEventListener('drop', e => {
+  $('#photoBox').classList.remove('drop');
+  if (!draggingFiles(e)) return;
+  e.preventDefault();
+  if (!busy) addFiles(e.dataTransfer.files);
+});
+
+// Ctrl+V зі скріншотом чи скопійованим фото
+document.addEventListener('paste', e => {
+  const files = [...(e.clipboardData ? e.clipboardData.files : [])].filter(looksLikeImage);
+  if (!files.length || $('#photoBox').hidden || busy) return;
+  e.preventDefault();
+  addFiles(files);
 });
 
 // ───── Збереження ─────
@@ -581,25 +796,47 @@ form.addEventListener('submit', async e => {
     const res = await call('formSaveBook', v, wasNew);
     rememberBook(res.id, v);
 
-    let uploaded = 0;
-    const failed = [];
-    for (const p of photos) {
-      setStatus(`Завантажую фото ${uploaded + failed.length + 1} з ${photos.length}…`);
-      try { await call('formAddPhoto', res.id, p.base64); uploaded++; }
-      catch (err) { failed.push(err.message); }
+    await Promise.all(photos.map(p => p.pending)); // недомальовані повороти
+    const live = photos.filter(p => !p.removed);
+    const removed = photos.filter(p => p.removed).map(p => p.file);
+    const reorder = photoOrderChanged();
+    // нові — у тому порядку, як стоять у формі; сервер дає їм наступні вільні номери
+    const toUpload = live.filter(p => p.isNew && !p.file);
+    const failed = [];  // фото, що не завантажились: лишаються у формі, щоб спробувати ще раз
+    const errors = [];
+    for (const [i, p] of toUpload.entries()) {
+      setStatus(`Завантажую фото ${i + 1} з ${toUpload.length}…`);
+      try { p.file = (await call('formAddPhoto', res.id, p.base64)).file; }
+      catch (err) { failed.push(p); errors.push(err.message); }
+    }
+    let arranged = false;
+    let onDrive = live.filter(p => p.file).map(p => p.file); // що тепер на Диску, якщо все вдалося
+    if (removed.length || reorder) {
+      setStatus(removed.length ? 'Видаляю й переставляю фото…' : 'Переставляю фото…');
+      try {
+        onDrive = await call('formArrangePhotos', res.id, onDrive, removed);
+        arranged = true;
+      } catch (err) { errors.push('порядок фото не змінено: ' + err.message); }
     }
 
+    const done = [];
+    if (toUpload.length > failed.length) done.push(`додано фото: ${toUpload.length - failed.length}`);
+    if (arranged && removed.length) done.push(`видалено: ${removed.length}`);
+    if (arranged && reorder) done.push('порядок фото змінено');
     const msg = `${wasNew ? 'Додано' : 'Збережено'} №${res.id} (рядок ${res.row})` +
-      (uploaded ? `, фото: ${uploaded}` : '') + (failed.length ? `\nФото не завантажились: ${failed.join('; ')}` : '');
+      (done.length ? `, ${done.join(', ')}` : '') + (errors.length ? `\nНе вийшло: ${errors.join('; ')}` : '');
     dirty = false;
-    if (wasNew) {
+    if (wasNew && !errors.length) {
       newBook(true);
     } else {
-      clearPhotos();
-      const count = await call('formGetBook', res.id).then(b => b.photoCount).catch(() => null);
-      if (count !== null && data.photos) $('#photoInfo').textContent = `(уже є: ${count}; нові додадуться після них)`;
+      // нова книга з помилками у фото — лишаємось у ній, щоб повторити, а не створити ще одну
+      if (wasNew) { editing = res.id; field('id').value = res.id; preorderWas = v.preorder; setMode(); }
+      // якщо щось пішло не так — питаємо в Диска, що там насправді (лише фото, без читання каталогу)
+      if (errors.length) onDrive = await call('formBookPhotos', res.id).catch(() => onDrive);
+      setPhotos(onDrive, failed);
+      if (failed.length) dirty = true;
     }
-    setStatus(msg, failed.length ? 'err' : 'ok');
+    setStatus(msg, errors.length ? 'err' : 'ok');
   } catch (err) {
     setStatus(err.message, 'err');
   } finally {
