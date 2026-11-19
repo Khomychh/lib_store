@@ -183,7 +183,8 @@
 - **Назва магазину:** в `index.html` — заголовок шапки (`<h1 class="brand">`) і `<title>`;
   опис для Google — `<meta name="description">`. Потім перемалюйте картинку прев'ю
   (Python і `pip install pillow`): `python scripts/og-image.py "Перший рядок" "Другий рядок"`.
-- **Іконка:** `<link rel="icon">` в `index.html` (SVG прямо в рядку) і `apple-touch-icon.png` (180×180).
+- **Іконка:** `favicon.svg` (для браузерів) і `favicon.png` (96×96, для Google — у пошуку він бере лише окремий файл,
+  розмір кратний 48), а ще `apple-touch-icon.png` (180×180). Змінивши SVG, перемалюйте з нього обидва PNG.
 
 ## 6. Google Пошук (Search Console)
 
